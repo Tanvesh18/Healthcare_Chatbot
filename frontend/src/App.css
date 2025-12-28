@@ -483,3 +483,12 @@ button {
 .message-actions button:hover {
   opacity: 1;
 }
+
+.chat-delete {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  cursor: pointer;
+  margin-left: auto;
+}
+
