@@ -224,8 +224,6 @@ Create a `.env` file in the `backend` directory:
 ```env
 # MongoDB Connection
 MONGO_URI=mongodb://localhost:27017/techfiesta
-# OR use MongoDB Atlas:
-# MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/techfiesta
 
 # JWT Secret (use a strong random string)
 JWT_SECRET=your-super-secret-jwt-key-here
