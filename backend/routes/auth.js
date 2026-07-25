@@ -4,7 +4,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const router = express.Router();
-
 const auth = (req) => jwt.verify(req.headers.authorization, process.env.JWT_SECRET);
 
 /* ---------- AUTH ---------- */
@@ -38,14 +37,13 @@ router.get("/me", async (req, res) => {
 
 router.put("/profile", async (req, res) => {
   const decoded = auth(req);
-
   const user = await User.findByIdAndUpdate(decoded.id, req.body, { new: true });
   res.json(user);
 });
 
 /* ---------- CHAT SYSTEM ---------- */
 
-// Create new empty chat
+// Create new chat
 router.post("/save", async (req, res) => {
   const decoded = auth(req);
   const user = await User.findById(decoded.id);
@@ -53,23 +51,25 @@ router.post("/save", async (req, res) => {
   user.chats.push(req.body);
   await user.save();
 
-  res.json(user.chats[user.chats.length - 1]);   // return new chat
+  const savedChat = user.chats[user.chats.length - 1];
+  res.json(savedChat);
 });
 
-// Update existing chat
+// Update chat
 router.put("/chat/:id", async (req, res) => {
   const decoded = auth(req);
+  const { title, messages } = req.body;
 
   const user = await User.findOneAndUpdate(
     { _id: decoded.id, "chats._id": req.params.id },
     {
-      $set: {
-        "chats.$.messages": req.body.messages,
-        "chats.$.title": req.body.title
-      }
+      ...(title && { "chats.$.title": title }),
+      ...(messages && { "chats.$.messages": messages })
     },
     { new: true }
   );
+
+  if (!user) return res.status(404).json({ message: "Chat not found" });
 
   res.json(user.chats.find(c => c._id == req.params.id));
 });
@@ -78,7 +78,7 @@ router.put("/chat/:id", async (req, res) => {
 router.get("/history", async (req, res) => {
   const decoded = auth(req);
   const user = await User.findById(decoded.id);
-  res.json(user.chats);
+  res.json(user.chats.reverse());
 });
 
 // Delete chat

@@ -15,11 +15,9 @@ const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   password: String,
-
   age: Number,
   height: Number,
   weight: Number,
-
   gender: String,           // male / female / other
   bloodGroup: String,      // O+, A+, B-, etc
   conditions: [String],    // diabetes, asthma, bp...

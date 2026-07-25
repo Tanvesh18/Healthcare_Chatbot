@@ -10,6 +10,7 @@ import HealthProfile from "./HealthProfile";
 
 export default function Sidebar({
   history,
+  setHistory,
   loadChat,
   newChat,
   isOpen,
@@ -38,25 +39,24 @@ export default function Sidebar({
   // Remove the old useEffect that was conflicting
 
   async function deleteChat(id, e) {
-    e.stopPropagation(); // Prevent triggering loadChat when clicking delete
-    
+    e.stopPropagation();
+  
     const token = localStorage.getItem("token");
     if (!token) return;
-
+  
+    // 🔥 Instant UI update (optimistic delete)
+    setHistory(prev => prev.filter(chat => chat._id !== id));
+  
     try {
       await fetch(`http://localhost:5000/api/auth/chat/${id}`, {
         method: "DELETE",
         headers: { Authorization: token }
       });
-
-      // Refresh history after deletion
-      if (refreshHistory) {
-        refreshHistory();
-      }
     } catch (err) {
-      console.error("Failed to delete chat:", err);
+      console.error("Delete failed, restoring chat");
+      refreshHistory();   // fallback only on error
     }
-  }
+  }  
 
   return (
     <aside className={`sidebar ${!isOpen ? "closed" : ""}`}>
