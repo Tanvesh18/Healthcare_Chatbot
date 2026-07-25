@@ -40,15 +40,17 @@ export default function Login() {
   return (
     <div className="auth-container">
       <form className="auth-card" onSubmit={handleLogin}>
-        <h2>Login</h2>
+        <h2>Welcome Back</h2>
+        <p className="auth-subtitle">Sign in to access your health consultations</p>
 
-        {error && <p className="error">{error}</p>}
+        {error && <div className="error-banner">{error}</div>}
 
         <input
           type="email"
-          placeholder="Email"
+          placeholder="Email Address"
           value={email}
           onChange={e => setEmail(e.target.value)}
+          required
         />
 
         <input
@@ -56,15 +58,16 @@ export default function Login() {
           placeholder="Password"
           value={password}
           onChange={e => setPassword(e.target.value)}
+          required
         />
 
-        <button disabled={loading}>
+        <button className="submit-btn" disabled={loading}>
           {loading ? "Logging in..." : "Login"}
         </button>
 
-        <p className="auth-reminder">
+        <p>
           Don’t have an account?{" "}
-          <span onClick={() => navigate("/signup")}>Sign up</span>
+          <span className="link-text" onClick={() => navigate("/signup")}>Sign up</span>
         </p>
       </form>
     </div>

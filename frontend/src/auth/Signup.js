@@ -62,8 +62,9 @@ export default function Signup() {
     <div className="auth-container">
       <form className="auth-card" onSubmit={handleSubmit}>
         <h2>Create Account</h2>
+        <p className="auth-subtitle">Join TechFiesta AI for personal health guidance</p>
 
-        {error && <p className="error">{error}</p>}
+        {error && <div className="error-banner">{error}</div>}
 
         <input
           type="text"
@@ -71,6 +72,7 @@ export default function Signup() {
           placeholder="Full Name"
           value={form.name}
           onChange={handleChange}
+          required
         />
 
         <input
@@ -79,14 +81,16 @@ export default function Signup() {
           placeholder="Email Address"
           value={form.email}
           onChange={handleChange}
+          required
         />
 
         <input
           type="password"
           name="password"
-          placeholder="Password"
+          placeholder="Password (min 6 chars)"
           value={form.password}
           onChange={handleChange}
+          required
         />
 
         <input
@@ -95,15 +99,16 @@ export default function Signup() {
           placeholder="Confirm Password"
           value={form.confirmPassword}
           onChange={handleChange}
+          required
         />
 
-        <button disabled={loading}>
+        <button className="submit-btn" disabled={loading}>
           {loading ? "Creating Account..." : "Sign Up"}
         </button>
 
-        <p className="auth-reminder">
+        <p>
           Already have an account?{" "}
-          <span onClick={() => navigate("/login")}>Login</span>
+          <span className="link-text" onClick={() => navigate("/login")}>Login</span>
         </p>
       </form>
     </div>
