@@ -88,22 +88,13 @@ export default function Sidebar({
         </div>
 
         {showSearch && (
-          <div style={{ padding: "0.25rem 0.5rem 0.5rem" }}>
+          <div className="sidebar-search-wrap">
             <input
+              className="sidebar-search-input"
               type="text"
               placeholder="Filter history..."
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
-              style={{
-                width: "100%",
-                padding: "0.45rem 0.75rem",
-                borderRadius: "8px",
-                border: "1px solid var(--border-glass)",
-                background: "rgba(0, 0, 0, 0.3)",
-                color: "var(--text-main)",
-                fontSize: "0.82rem",
-                outline: "none"
-              }}
             />
           </div>
         )}
@@ -113,10 +104,7 @@ export default function Sidebar({
         <div className="sidebar-label">Recent Consultations</div>
 
         {filteredHistory.length === 0 ? (
-          <div
-            className="sidebar-label"
-            style={{ padding: "1rem 0.6rem", opacity: 0.5, textAlign: "center", textTransform: "none" }}
-          >
+          <div className="sidebar-label sidebar-empty">
             {history.length === 0 ? "No chats yet. Start a new consultation!" : "No matching chats found."}
           </div>
         ) : (
@@ -133,7 +121,7 @@ export default function Sidebar({
                   }
                 }}
               >
-                <FiMessageSquare style={{ color: "var(--primary-cyan)" }} />
+                <FiMessageSquare className="history-icon" />
                 <span className="truncate" style={{ flex: 1 }}>{chat.title || "New Chat"}</span>
                 <button
                   className="chat-delete"
@@ -180,10 +168,10 @@ export default function Sidebar({
         ) : (
           <>
             <div className="sidebar-user-card">
-              <div className="user-avatar" style={{ background: "var(--text-dim)" }}>G</div>
+              <div className="user-avatar guest-avatar">G</div>
               <div className="user-info">
                 <span className="user-name">Guest User</span>
-                <span className="user-status" style={{ color: "var(--text-dim)" }}>
+                <span className="user-status user-status-muted">
                   Login to save history
                 </span>
               </div>
