@@ -75,7 +75,7 @@ export default function ChatArea({
             </button>
           )}
           <div className="header-title">
-            <span>Healthcare Assistant</span>
+            <span>CuraLink AI</span>
             <div className="ai-badge">
               <span className="ai-pulse-dot"></span>
               <span>Llama 3.3 AI Active</span>
@@ -92,7 +92,7 @@ export default function ChatArea({
             <div className="hero-icon">🏥</div>
           </div>
 
-          <h1 className="hero-title">How can TechFiesta AI help you today?</h1>
+          <h1 className="hero-title">How can CuraLink AI help you today?</h1>
           <p className="hero-subtitle">
             Get instant, AI-guided symptom analysis, medical guidance, and real-time locations of nearby doctors and hospitals.
           </p>

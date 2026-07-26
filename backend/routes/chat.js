@@ -9,7 +9,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 const SYSTEM_PROMPT = (user, clinics = "", hasLocation = false) => `
-You are TechFiesta AI - a healthcare assistant with REAL access to nearby clinics when provided.
+You are CuraLink AI - a healthcare assistant with REAL access to nearby clinics when provided.
 
 User: ${user.name}
 

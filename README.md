@@ -1,4 +1,4 @@
-# 🏥 TechFiesta AI - Healthcare Assistant
+# CuraLink AI - Healthcare Assistant
 
 A modern, AI-powered healthcare assistant application that provides personalized medical guidance, symptom analysis, and nearby healthcare facility recommendations. Built with React, Node.js, and powered by Groq AI.
 
@@ -157,7 +157,7 @@ User {
 ## 📁 Project Structure
 
 ```
-techfiesta/
+curalink/
 ├── backend/
 │   ├── middleware/
 │   │   └── RequireAuth.js      # Authentication middleware
@@ -209,7 +209,7 @@ techfiesta/
 
 ```bash
 git clone <your-repo-url>
-cd techfiesta
+cd curalink
 ```
 
 ### Step 2: Backend Setup

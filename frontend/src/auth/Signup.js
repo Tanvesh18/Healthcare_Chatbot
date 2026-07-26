@@ -59,7 +59,7 @@ export default function Signup() {
     <div className="auth-container">
       <form className="auth-card" onSubmit={handleSubmit}>
         <h2>Create Account</h2>
-        <p className="auth-subtitle">Join TechFiesta AI for personal health guidance</p>
+        <p className="auth-subtitle">Join CuraLink AI for personal health guidance</p>
 
         {error && <div className="error-banner">{error}</div>}
 

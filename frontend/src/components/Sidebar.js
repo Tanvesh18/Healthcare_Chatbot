@@ -99,7 +99,7 @@ export default function Sidebar({
       <div className="sidebar-header">
         <div className="sidebar-brand">
           <div className="brand-icon">🏥</div>
-          <div className="sidebar-logo">TechFiesta AI</div>
+          <div className="sidebar-logo">CuraLink AI</div>
         </div>
         <button className="sidebar-close" onClick={() => setIsOpen(false)} title="Close Sidebar">
           <FiChevronLeft />
