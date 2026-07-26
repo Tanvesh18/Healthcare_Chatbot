@@ -20,12 +20,18 @@ export default function ChatArea({
   error
 }) {
   const bottomRef = useRef(null);
+  const messagesRef = useRef(null);
   const synthRef = useRef(window.speechSynthesis);
   const [speakingIndex, setSpeakingIndex] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!messagesRef.current) return;
+
+    messagesRef.current.scrollTo({
+      top: messagesRef.current.scrollHeight,
+      behavior: "smooth"
+    });
   }, [messages, isTyping]);
 
   const toggleSpeak = (text, index) => {
@@ -130,7 +136,7 @@ export default function ChatArea({
           </div>
         </div>
       ) : (
-        <div className="messages">
+        <div ref={messagesRef} className="messages">
           {error && (
             <div className="error-banner" style={{ width: "100%", maxWidth: "48rem" }}>
               {error}
