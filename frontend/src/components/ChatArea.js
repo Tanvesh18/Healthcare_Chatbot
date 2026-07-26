@@ -16,7 +16,8 @@ export default function ChatArea({
   sendMessage, 
   isTyping, 
   openSidebar, 
-  sidebarOpen 
+  sidebarOpen,
+  error
 }) {
   const bottomRef = useRef(null);
   const synthRef = useRef(window.speechSynthesis);
@@ -130,6 +131,12 @@ export default function ChatArea({
         </div>
       ) : (
         <div className="messages">
+          {error && (
+            <div className="error-banner" style={{ width: "100%", maxWidth: "48rem" }}>
+              {error}
+            </div>
+          )}
+
           {messages.map((msg, i) => (
             <div key={i} className={`msg ${msg.sender}`}>
               <div className="msg-avatar">

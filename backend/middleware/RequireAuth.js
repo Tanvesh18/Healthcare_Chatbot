@@ -1,11 +1,16 @@
-const jwt = require("jsonwebtoken");
+import jwt from "jsonwebtoken";
 
-module.exports = (req, res, next) => {
+export default function requireAuth(req, res, next) {
+  const token = req.headers.authorization;
+
+  if (!token) {
+    return res.status(401).json({ message: "Missing authorization token" });
+  }
+
   try {
-    const token = req.headers.authorization;
-    jwt.verify(token, process.env.JWT_SECRET);
+    req.auth = jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
-    res.status(401).json({ message: "Unauthorized" });
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
-};
+}

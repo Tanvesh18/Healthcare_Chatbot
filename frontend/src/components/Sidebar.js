@@ -11,6 +11,7 @@ import {
   FiUserPlus
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
+import { apiJson, clearToken, getToken } from "../api";
 import HealthProfile from "./HealthProfile";
 
 export default function Sidebar({
@@ -29,48 +30,42 @@ export default function Sidebar({
   const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!getToken()) return;
 
-    fetch("http://localhost:5000/api/auth/me", {
-      headers: { Authorization: token }
-    })
-      .then(res => res.ok ? res.json() : Promise.reject())
+    apiJson("/api/auth/me")
       .then(setUser)
       .catch(() => {
-        localStorage.removeItem("token");
-        navigate("/login");
+        clearToken();
+        navigate("/login", {
+          state: { error: "Your session has expired. Please log in again." }
+        });
       });
   }, [navigate]);
 
-  async function deleteChat(id, e) {
-    e.stopPropagation();
-  
-    const token = localStorage.getItem("token");
-    if (!token) return;
-  
-    // Optimistic UI removal
+  async function deleteChat(id, event) {
+    event.stopPropagation();
+
+    if (!getToken()) return;
+
     setHistory(prev => prev.filter(chat => chat._id !== id));
-  
+
     try {
-      await fetch(`http://localhost:5000/api/auth/chat/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: token }
+      await apiJson(`/api/auth/chat/${id}`, {
+        method: "DELETE"
       });
     } catch (err) {
       console.error("Delete failed, restoring chat", err);
       if (refreshHistory) refreshHistory();
     }
-  }  
+  }
 
-  const filteredHistory = history.filter(chat => 
-    !searchQuery.trim() || 
+  const filteredHistory = history.filter(chat =>
+    !searchQuery.trim() ||
     (chat.title && chat.title.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <aside className={`sidebar ${!isOpen ? "closed" : ""}`}>
-      {/* Brand Header */}
       <div className="sidebar-header">
         <div className="sidebar-brand">
           <div className="brand-icon">🏥</div>
@@ -81,7 +76,6 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Primary Actions */}
       <nav className="sidebar-section">
         <div className="sidebar-item new-chat-btn" onClick={newChat}>
           <FiPlus />
@@ -99,7 +93,7 @@ export default function Sidebar({
               type="text"
               placeholder="Filter history..."
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={event => setSearchQuery(event.target.value)}
               style={{
                 width: "100%",
                 padding: "0.45rem 0.75rem",
@@ -115,33 +109,35 @@ export default function Sidebar({
         )}
       </nav>
 
-      {/* Consultation History List */}
       <div className="sidebar-section sidebar-history">
         <div className="sidebar-label">Recent Consultations</div>
-        
+
         {filteredHistory.length === 0 ? (
-          <div className="sidebar-label" style={{ padding: "1rem 0.6rem", opacity: 0.5, textAlign: "center", textTransform: "none" }}>
+          <div
+            className="sidebar-label"
+            style={{ padding: "1rem 0.6rem", opacity: 0.5, textAlign: "center", textTransform: "none" }}
+          >
             {history.length === 0 ? "No chats yet. Start a new consultation!" : "No matching chats found."}
           </div>
         ) : (
           filteredHistory.map(chat => {
             if (!chat || !chat._id) return null;
-            
+
             return (
-              <div 
-                key={chat._id} 
+              <div
+                key={chat._id}
                 className="sidebar-item"
-                onClick={(e) => {
-                  if (!e.target.closest('.chat-delete')) {
-                    if (loadChat) loadChat(chat);
+                onClick={event => {
+                  if (!event.target.closest(".chat-delete") && loadChat) {
+                    loadChat(chat);
                   }
                 }}
               >
-                <FiMessageSquare style={{ color: "var(--primary-cyan)" }} /> 
+                <FiMessageSquare style={{ color: "var(--primary-cyan)" }} />
                 <span className="truncate" style={{ flex: 1 }}>{chat.title || "New Chat"}</span>
-                <button 
-                  className="chat-delete" 
-                  onClick={(e) => deleteChat(chat._id, e)}
+                <button
+                  className="chat-delete"
+                  onClick={event => deleteChat(chat._id, event)}
                   title="Delete Chat"
                 >
                   <FiTrash2 />
@@ -152,7 +148,6 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* User Card & Auth Footer */}
       <div className="sidebar-footer">
         {user ? (
           <>
@@ -172,10 +167,13 @@ export default function Sidebar({
               <FiActivity style={{ marginRight: 6 }} /> Health Profile
             </button>
 
-            <button className="auth-btn logout" onClick={() => {
-              localStorage.removeItem("token");
-              navigate("/login");
-            }}>
+            <button
+              className="auth-btn logout"
+              onClick={() => {
+                clearToken();
+                navigate("/login");
+              }}
+            >
               <FiLogOut style={{ marginRight: 6 }} /> Logout
             </button>
           </>
@@ -203,7 +201,13 @@ export default function Sidebar({
         )}
       </div>
 
-      {showProfile && <HealthProfile user={user || {}} onClose={() => setShowProfile(false)} />}
+      {showProfile && (
+        <HealthProfile
+          user={user || {}}
+          onClose={() => setShowProfile(false)}
+          onSaved={setUser}
+        />
+      )}
     </aside>
   );
 }
