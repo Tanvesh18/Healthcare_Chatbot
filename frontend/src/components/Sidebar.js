@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   FiPlus,
   FiSearch,
@@ -8,11 +8,11 @@ import {
   FiActivity,
   FiLogOut,
   FiLogIn,
-  FiUserPlus
+  FiUserPlus,
+  FiChevronRight
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { apiJson, clearToken, getToken } from "../api";
-import HealthProfile from "./HealthProfile";
 
 export default function Sidebar({
   history,
@@ -21,13 +21,17 @@ export default function Sidebar({
   newChat,
   isOpen,
   setIsOpen,
-  refreshHistory
+  refreshHistory,
+  sidebarWidth,
+  setSidebarWidth,
+  minSidebarWidth,
+  maxSidebarWidth
 }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [showProfile, setShowProfile] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const resizeStateRef = useRef(null);
 
   useEffect(() => {
     if (!getToken()) return;
@@ -63,6 +67,32 @@ export default function Sidebar({
     !searchQuery.trim() ||
     (chat.title && chat.title.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  function startResize(event) {
+    if (window.innerWidth <= 768 || !isOpen) return;
+
+    event.preventDefault();
+
+    resizeStateRef.current = {
+      startX: event.clientX,
+      startWidth: sidebarWidth
+    };
+
+    const onPointerMove = moveEvent => {
+      const nextWidth = resizeStateRef.current.startWidth + (moveEvent.clientX - resizeStateRef.current.startX);
+      const clampedWidth = Math.min(maxSidebarWidth, Math.max(minSidebarWidth, nextWidth));
+      setSidebarWidth(clampedWidth);
+    };
+
+    const onPointerUp = () => {
+      resizeStateRef.current = null;
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
 
   return (
     <aside className={`sidebar ${!isOpen ? "closed" : ""}`}>
@@ -151,8 +181,11 @@ export default function Sidebar({
               </div>
             </div>
 
-            <button className="auth-btn profile" onClick={() => setShowProfile(true)}>
-              <FiActivity style={{ marginRight: 6 }} /> Health Profile
+            <button className="auth-btn profile sidebar-profile-link" onClick={() => navigate("/profile")}>
+              <span className="sidebar-profile-link-main">
+                <FiActivity style={{ marginRight: 6 }} /> Health Profile
+              </span>
+              <FiChevronRight />
             </button>
 
             <button
@@ -189,13 +222,12 @@ export default function Sidebar({
         )}
       </div>
 
-      {showProfile && (
-        <HealthProfile
-          user={user || {}}
-          onClose={() => setShowProfile(false)}
-          onSaved={setUser}
-        />
-      )}
+      <button
+        type="button"
+        className="sidebar-resizer"
+        aria-label="Resize sidebar"
+        onPointerDown={startResize}
+      />
     </aside>
   );
 }

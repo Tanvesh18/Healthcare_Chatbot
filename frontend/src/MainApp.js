@@ -4,9 +4,20 @@ import { apiFetch, apiJson, clearToken, getToken } from "./api";
 import ChatArea from "./components/ChatArea";
 import Sidebar from "./components/Sidebar";
 
+const SIDEBAR_WIDTH_KEY = "techfiesta.sidebarWidth";
+const DEFAULT_SIDEBAR_WIDTH = 298;
+const MIN_SIDEBAR_WIDTH = 260;
+const MAX_SIDEBAR_WIDTH = 420;
+
 export default function MainApp() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return Number.isFinite(stored) && stored >= MIN_SIDEBAR_WIDTH && stored <= MAX_SIDEBAR_WIDTH
+      ? stored
+      : DEFAULT_SIDEBAR_WIDTH;
+  });
   const [messages, setMessages] = useState([
     { sender: "assistant", text: "Hello! Describe your symptoms." }
   ]);
@@ -37,6 +48,10 @@ export default function MainApp() {
   useEffect(() => {
     refreshHistory();
   }, [refreshHistory]);
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
 
   async function updateChat(chatId, nextMessages) {
     await apiJson(`/api/auth/chat/${chatId}`, {
@@ -198,7 +213,10 @@ export default function MainApp() {
   }
 
   return (
-    <div className={`app dark ${sidebarOpen ? "sidebar-open" : ""}`}>
+    <div
+      className={`app dark ${sidebarOpen ? "sidebar-open" : ""}`}
+      style={{ "--sidebar-width": `${sidebarWidth}px` }}
+    >
       <Sidebar
         history={history}
         setHistory={setHistory}
@@ -211,6 +229,10 @@ export default function MainApp() {
         isOpen={sidebarOpen}
         setIsOpen={setSidebarOpen}
         refreshHistory={refreshHistory}
+        sidebarWidth={sidebarWidth}
+        setSidebarWidth={setSidebarWidth}
+        minSidebarWidth={MIN_SIDEBAR_WIDTH}
+        maxSidebarWidth={MAX_SIDEBAR_WIDTH}
       />
 
       <ChatArea
