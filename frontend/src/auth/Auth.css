@@ -97,6 +97,134 @@
   color: var(--text-muted);
 }
 
+.social-auth {
+  margin-top: 1.15rem;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+.social-auth-grid {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.google-auth-shell {
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border-radius: 18px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.04);
+  transition: opacity 0.2s ease;
+}
+
+.google-auth-shell.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.google-auth-button {
+  display: flex;
+  justify-content: center;
+}
+
+.social-auth-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.social-auth-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.social-auth-btn.google:hover {
+  border-color: rgba(255, 143, 112, 0.34);
+}
+
+.social-auth-btn.github:hover {
+  border-color: rgba(105, 240, 207, 0.3);
+}
+
+.social-auth-btn.apple:hover {
+  border-color: rgba(244, 200, 106, 0.3);
+}
+
+.social-auth-icon {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.social-auth-btn.google .social-auth-icon {
+  color: #ffe0d4;
+  background: rgba(255, 143, 112, 0.14);
+}
+
+.social-auth-btn.github .social-auth-icon {
+  color: #d5fff5;
+  background: rgba(105, 240, 207, 0.12);
+}
+
+.social-auth-btn.apple .social-auth-icon {
+  color: #ffeeba;
+  background: rgba(244, 200, 106, 0.14);
+}
+
+.social-auth-arrow {
+  margin-left: auto;
+  color: var(--text-dim);
+}
+
+.social-auth-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid rgba(244, 200, 106, 0.18);
+  background: rgba(244, 200, 106, 0.08);
+  color: #ffe9b7;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
 .auth-card span.link-text {
   color: var(--mint);
   cursor: pointer;

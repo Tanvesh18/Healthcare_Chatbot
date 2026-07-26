@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { apiJson } from "../api";
+import SocialAuth from "./SocialAuth";
 import "./Auth.css";
 
 export default function Signup() {
@@ -16,12 +18,12 @@ export default function Signup() {
   const [error, setError] = useState(location.state?.error || "");
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  function handleChange(event) {
+    setForm({ ...form, [event.target.name]: event.target.value });
+  }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError("");
 
     if (!form.name || !form.email || !form.password || !form.confirmPassword) {
@@ -39,25 +41,19 @@ export default function Signup() {
     try {
       setLoading(true);
 
-      const res = await fetch("http://localhost:5000/api/auth/signup", {
+      const data = await apiJson("/api/auth/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(form)
       });
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || "Signup failed");
 
       localStorage.setItem("token", data.token);
       navigate("/");
-
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <div className="auth-container">
@@ -106,6 +102,8 @@ export default function Signup() {
         <button className="submit-btn" disabled={loading}>
           {loading ? "Creating Account..." : "Sign Up"}
         </button>
+
+        <SocialAuth />
 
         <p>
           Already have an account?{" "}

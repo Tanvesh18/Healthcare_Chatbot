@@ -1,10 +1,17 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
 
 const router = express.Router();
+const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
+const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+let googleJwksCache = {
+  expiresAt: 0,
+  keys: []
+};
 
 const PROFILE_FIELDS = [
   "age",
@@ -23,6 +30,105 @@ function badRequest(message) {
   const error = new Error(message);
   error.status = 400;
   return error;
+}
+
+function parseMaxAge(cacheControl) {
+  const match = cacheControl?.match(/max-age=(\d+)/i);
+  return match ? Number(match[1]) : 3600;
+}
+
+function decodeBase64Url(value) {
+  return Buffer.from(value, "base64url");
+}
+
+function parseJwt(credential) {
+  const parts = String(credential || "").split(".");
+  if (parts.length !== 3) {
+    throw badRequest("Invalid Google credential format");
+  }
+
+  try {
+    return {
+      encodedHeader: parts[0],
+      encodedPayload: parts[1],
+      signature: parts[2],
+      header: JSON.parse(decodeBase64Url(parts[0]).toString("utf8")),
+      payload: JSON.parse(decodeBase64Url(parts[1]).toString("utf8"))
+    };
+  } catch {
+    throw badRequest("Invalid Google credential format");
+  }
+}
+
+async function getGoogleJwks() {
+  if (googleJwksCache.expiresAt > Date.now() && googleJwksCache.keys.length > 0) {
+    return googleJwksCache.keys;
+  }
+
+  const response = await fetch(GOOGLE_JWKS_URL);
+  if (!response.ok) {
+    const error = new Error("Unable to fetch Google signing keys");
+    error.status = 503;
+    throw error;
+  }
+
+  const data = await response.json();
+  googleJwksCache = {
+    keys: Array.isArray(data.keys) ? data.keys : [],
+    expiresAt: Date.now() + parseMaxAge(response.headers.get("cache-control")) * 1000
+  };
+
+  return googleJwksCache.keys;
+}
+
+async function verifyGoogleCredential(credential) {
+  const { encodedHeader, encodedPayload, signature, header, payload } = parseJwt(credential);
+
+  if (header.alg !== "RS256" || !header.kid) {
+    throw badRequest("Unsupported Google credential");
+  }
+
+  const keys = await getGoogleJwks();
+  const jwk = keys.find(key => key.kid === header.kid && key.kty === "RSA");
+  if (!jwk) {
+    googleJwksCache.expiresAt = 0;
+    const refreshedKeys = await getGoogleJwks();
+    const refreshedKey = refreshedKeys.find(key => key.kid === header.kid && key.kty === "RSA");
+    if (!refreshedKey) {
+      throw badRequest("Google signing key not found");
+    }
+
+    return verifyGoogleSignature(refreshedKey, encodedHeader, encodedPayload, signature, payload);
+  }
+
+  return verifyGoogleSignature(jwk, encodedHeader, encodedPayload, signature, payload);
+}
+
+function verifyGoogleSignature(jwk, encodedHeader, encodedPayload, signature, payload) {
+  const publicKey = crypto.createPublicKey({ key: jwk, format: "jwk" });
+  const verifier = crypto.createVerify("RSA-SHA256");
+  verifier.update(`${encodedHeader}.${encodedPayload}`);
+  verifier.end();
+
+  const isValid = verifier.verify(publicKey, decodeBase64Url(signature));
+  if (!isValid) {
+    throw badRequest("Invalid Google credential signature");
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.exp <= now) {
+    throw badRequest("Google credential has expired");
+  }
+
+  if (payload.nbf && payload.nbf > now) {
+    throw badRequest("Google credential is not active yet");
+  }
+
+  if (!GOOGLE_ISSUERS.has(payload.iss)) {
+    throw badRequest("Invalid Google credential issuer");
+  }
+
+  return payload;
 }
 
 function parsePositiveNumber(value, field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
@@ -131,8 +237,79 @@ router.post("/login", async (req, res, next) => {
     }
 
     const user = await User.findOne({ email: req.body.email.trim().toLowerCase() });
-    if (!user || !(await bcrypt.compare(req.body.password, user.password))) {
+    if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (!user.password) {
+      return res.status(400).json({ message: "This account uses Google sign-in. Please continue with Google." });
+    }
+
+    if (!(await bcrypt.compare(req.body.password, user.password))) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    res.json({ token: jwt.sign({ id: user._id }, process.env.JWT_SECRET) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/google", async (req, res, next) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      throw badRequest("Google credential is required");
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      const error = new Error("Google sign-in is not configured on the server");
+      error.status = 500;
+      throw error;
+    }
+
+    const payload = await verifyGoogleCredential(credential);
+
+    if (payload.aud !== process.env.GOOGLE_CLIENT_ID) {
+      return res.status(400).json({ message: "Google credential audience mismatch" });
+    }
+
+    if (String(payload.email_verified) !== "true" || !payload.email?.trim()) {
+      return res.status(400).json({ message: "Google account email is not verified" });
+    }
+
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    let user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      user = await User.create({
+        name: payload.name?.trim() || normalizedEmail.split("@")[0],
+        email: normalizedEmail,
+        googleId: payload.sub,
+        avatarUrl: payload.picture
+      });
+    } else {
+      let shouldSave = false;
+
+      if (!user.googleId) {
+        user.googleId = payload.sub;
+        shouldSave = true;
+      }
+
+      if (payload.picture && user.avatarUrl !== payload.picture) {
+        user.avatarUrl = payload.picture;
+        shouldSave = true;
+      }
+
+      if ((!user.name || user.name === normalizedEmail) && payload.name?.trim()) {
+        user.name = payload.name.trim();
+        shouldSave = true;
+      }
+
+      if (shouldSave) {
+        await user.save();
+      }
     }
 
     res.json({ token: jwt.sign({ id: user._id }, process.env.JWT_SECRET) });

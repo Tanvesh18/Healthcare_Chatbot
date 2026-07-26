@@ -15,6 +15,8 @@ const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
   password: String,
+  googleId: String,
+  avatarUrl: String,
   age: Number,
   height: Number,
   weight: Number,

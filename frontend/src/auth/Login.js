@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { apiJson } from "../api";
+import SocialAuth from "./SocialAuth";
 import "./Auth.css";
 
 export default function Login() {
@@ -11,26 +13,20 @@ export default function Login() {
   const [error, setError] = useState(location.state?.error || "");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e) {
-    e.preventDefault();
+  async function handleLogin(event) {
+    event.preventDefault();
     setError("");
 
     try {
       setLoading(true);
 
-      const res = await fetch("http://localhost:5000/api/auth/login", {
+      const data = await apiJson("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
 
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || "Login failed");
-
       localStorage.setItem("token", data.token);
       navigate("/");
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -50,7 +46,7 @@ export default function Login() {
           type="email"
           placeholder="Email Address"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={event => setEmail(event.target.value)}
           required
         />
 
@@ -58,7 +54,7 @@ export default function Login() {
           type="password"
           placeholder="Password"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={event => setPassword(event.target.value)}
           required
         />
 
@@ -66,8 +62,10 @@ export default function Login() {
           {loading ? "Logging in..." : "Login"}
         </button>
 
+        <SocialAuth />
+
         <p>
-          Don’t have an account?{" "}
+          Don&apos;t have an account?{" "}
           <span className="link-text" onClick={() => navigate("/signup")}>Sign up</span>
         </p>
       </form>

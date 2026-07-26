@@ -230,6 +230,12 @@ JWT_SECRET=your-super-secret-jwt-key-here
 
 # Groq API Key
 GROQ_API_KEY=your-groq-api-key-here
+
+# Frontend origin for CORS
+CLIENT_ORIGIN=http://localhost:3000
+
+# Google Sign-In Web Client ID
+GOOGLE_CLIENT_ID=your-google-web-client-id
 ```
 
 ### Step 3: Frontend Setup
@@ -237,6 +243,13 @@ GROQ_API_KEY=your-groq-api-key-here
 ```bash
 cd ../frontend
 npm install
+```
+
+Create a `.env` file in the `frontend` directory:
+
+```env
+REACT_APP_API_BASE_URL=http://localhost:5000
+REACT_APP_GOOGLE_CLIENT_ID=your-google-web-client-id
 ```
 
 ### Step 4: Start the Application
@@ -272,6 +285,26 @@ The application will be available at:
 
 #### Frontend
 No environment variables required for basic setup. API endpoints are hardcoded to `http://localhost:5000`.
+
+For Google Sign-In, configure these variables:
+
+Backend `.env`
+```env
+CLIENT_ORIGIN=http://localhost:3000
+GOOGLE_CLIENT_ID=your-google-web-client-id
+```
+
+Frontend `.env`
+```env
+REACT_APP_API_BASE_URL=http://localhost:5000
+REACT_APP_GOOGLE_CLIENT_ID=your-google-web-client-id
+```
+
+Google setup steps:
+1. Create a Google OAuth Web application credential in Google Cloud.
+2. Add `http://localhost:3000` to Authorized JavaScript origins.
+3. Use the same Web Client ID in both backend and frontend env files.
+4. Restart both apps after updating environment variables.
 
 ### Groq Model Configuration
 
