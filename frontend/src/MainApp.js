@@ -31,7 +31,11 @@ function requestBrowserLocation() {
 
   return new Promise(resolve => {
     navigator.geolocation.getCurrentPosition(
-      position => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      position => resolve({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      }),
       () => resolve(null),
       { timeout: 8000, enableHighAccuracy: true }
     );
@@ -127,6 +131,8 @@ export default function MainApp() {
         setIsTyping(false);
         return;
       }
+
+      console.log("Browser location:", location);
     }
 
     if (!chatId) {
