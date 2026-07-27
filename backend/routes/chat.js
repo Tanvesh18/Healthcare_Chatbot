@@ -20,7 +20,7 @@ YOU MUST USE THESE.
 DO NOT suggest Google search.
 DO NOT say you lack location.
 
-${clinics}
+${clinics || "No nearby hospitals or clinics were found from the location lookup."}
 ` : `
 LOCATION ACCESS: NOT GRANTED.
 If the user asks for doctors, hospitals or clinics, you MUST ask:
@@ -33,17 +33,86 @@ Rules:
 - List only real hospitals when available.
 `;
 
+const formatClinic = (name, lat, lng) => {
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  return `- ${name} - ${mapsUrl}`;
+};
+
+const fetchGoogleNearbyClinics = async (lat, lng) => {
+  if (!process.env.GOOGLE_API_KEY) return "";
+
+  const params = new URLSearchParams({
+    location: `${lat},${lng}`,
+    radius: "3000",
+    keyword: "hospital|clinic|doctor",
+    key: process.env.GOOGLE_API_KEY
+  });
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params}`;
+  const res = await fetch(url);
+  const data = await res.json();
+
+  if (data.status && !["OK", "ZERO_RESULTS"].includes(data.status)) {
+    console.warn("Google Places lookup failed:", data.status, data.error_message || "");
+  }
+
+  return (data.results || [])
+    .slice(0, 5)
+    .map(place => {
+      const placeLat = place.geometry?.location?.lat;
+      const placeLng = place.geometry?.location?.lng;
+      const mapsUrl = place.place_id
+        ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
+        : `https://www.google.com/maps/search/?api=1&query=${placeLat},${placeLng}`;
+
+      return `- ${place.name} - ${mapsUrl}`;
+    })
+    .join("\n");
+};
+
+const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
+  const query = `
+    [out:json][timeout:10];
+    (
+      node["amenity"~"hospital|clinic|doctors"](around:3000,${lat},${lng});
+      way["amenity"~"hospital|clinic|doctors"](around:3000,${lat},${lng});
+      relation["amenity"~"hospital|clinic|doctors"](around:3000,${lat},${lng});
+    );
+    out center 8;
+  `;
+
+  const res = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ data: query })
+  });
+
+  if (!res.ok) {
+    console.warn("OpenStreetMap lookup failed:", res.status, res.statusText);
+    return "";
+  }
+
+  const data = await res.json();
+
+  return (data.elements || [])
+    .map(place => ({
+      name: place.tags?.name || place.tags?.["name:en"] || place.tags?.amenity,
+      lat: place.lat ?? place.center?.lat,
+      lng: place.lon ?? place.center?.lon
+    }))
+    .filter(place => place.name && place.lat && place.lng)
+    .slice(0, 5)
+    .map(place => formatClinic(place.name, place.lat, place.lng))
+    .join("\n");
+};
+
 const fetchNearbyClinics = async (lat, lng) => {
   try {
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&keyword=hospital|clinic|doctor&key=${process.env.GOOGLE_API_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const googleClinics = await fetchGoogleNearbyClinics(lat, lng);
+    if (googleClinics) return googleClinics;
 
-    return (data.results || [])
-      .slice(0, 5)
-      .map(place => `- ${place.name} - https://www.google.com/maps/place/?q=place_id:${place.place_id}`)
-      .join("\n");
-  } catch {
+    return await fetchOpenStreetMapNearbyClinics(lat, lng);
+  } catch (error) {
+    console.warn("Nearby clinic lookup failed:", error.message);
     return "";
   }
 };

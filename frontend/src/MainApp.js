@@ -8,6 +8,35 @@ const SIDEBAR_WIDTH_KEY = "techfiesta.sidebarWidth";
 const DEFAULT_SIDEBAR_WIDTH = 298;
 const MIN_SIDEBAR_WIDTH = 260;
 const MAX_SIDEBAR_WIDTH = 420;
+const LOCATION_UNAVAILABLE_MESSAGE =
+  "To suggest nearby doctors or hospitals, I need access to your location. Please allow location permission and try again.";
+
+function isNearbyRequest(text) {
+  return /near me|nearby|around me|doctor|hospital|clinic|medical|emergency/i.test(text);
+}
+
+function isLocationConsent(text, messages) {
+  const lastAssistantMessage = [...messages].reverse().find(message => message.sender === "assistant");
+  const assistantAskedForLocation =
+    /access your location|allow location|location permission|nearby hospitals/i.test(lastAssistantMessage?.text || "");
+  const userConsented = /^(yes|yeah|yep|sure|ok|okay|allow|please do|go ahead|find|show)\b/i.test(text.trim());
+
+  return assistantAskedForLocation && userConsented;
+}
+
+function requestBrowserLocation() {
+  if (!navigator.geolocation) {
+    return Promise.resolve(null);
+  }
+
+  return new Promise(resolve => {
+    navigator.geolocation.getCurrentPosition(
+      position => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      () => resolve(null),
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  });
+}
 
 export default function MainApp() {
   const navigate = useNavigate();
@@ -27,6 +56,8 @@ export default function MainApp() {
   const [activeChatId, setActiveChatId] = useState(null);
   const [error, setError] = useState("");
   const bufferRef = useRef("");
+  const activeStreamControllerRef = useRef(null);
+  const chatSessionRef = useRef(0);
 
   const redirectToLogin = useCallback((message) => {
     clearToken();
@@ -71,28 +102,26 @@ export default function MainApp() {
     const userMsg = input.trim();
     let chatId = activeChatId;
     let location = null;
+    const chatSession = chatSessionRef.current;
 
     setInput("");
     setIsTyping(true);
     setError("");
 
-    const wantsNearby = /near me|nearby|around me|doctor|hospital|clinic|medical/i.test(userMsg);
+    const wantsNearby = isNearbyRequest(userMsg) || isLocationConsent(userMsg, messages);
 
     if (wantsNearby) {
-      location = await new Promise(resolve => {
-        navigator.geolocation.getCurrentPosition(
-          position => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
-          () => resolve(null),
-          { timeout: 5000 }
-        );
-      });
+      location = await requestBrowserLocation();
 
       if (!location) {
+        if (chatSession !== chatSessionRef.current) return;
+
         setMessages(prev => [
           ...prev,
+          { sender: "user", text: userMsg },
           {
             sender: "assistant",
-            text: "To suggest nearby doctors or hospitals, I need access to your location. Please allow location permission and try again."
+            text: LOCATION_UNAVAILABLE_MESSAGE
           }
         ]);
         setIsTyping(false);
@@ -116,9 +145,13 @@ export default function MainApp() {
         });
 
         chatId = saved._id;
+        if (chatSession !== chatSessionRef.current) return;
+
         setActiveChatId(chatId);
         refreshHistory();
       } catch (err) {
+        if (chatSession !== chatSessionRef.current) return;
+
         setIsTyping(false);
         if (err.status === 401) {
           redirectToLogin(err.message);
@@ -137,17 +170,26 @@ export default function MainApp() {
     ];
     setMessages(updatedMessages);
 
+    activeStreamControllerRef.current?.abort();
+    const streamController = new AbortController();
+    activeStreamControllerRef.current = streamController;
+
     try {
       const response = await apiFetch("/api/chat/chat-stream", {
         method: "POST",
+        signal: streamController.signal,
         body: JSON.stringify({
-          messages: updatedMessages.map(message => ({
-            role: message.sender,
-            content: message.text
-          })),
+          messages: updatedMessages
+            .filter(message => message.text?.trim())
+            .map(message => ({
+              role: message.sender,
+              content: message.text
+            })),
           location
         })
       });
+
+      if (chatSession !== chatSessionRef.current) return;
 
       if (!response.ok || !response.body) {
         throw new Error("Chat service is unavailable right now.");
@@ -160,6 +202,7 @@ export default function MainApp() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        if (chatSession !== chatSessionRef.current) return;
 
         const chunk = decoder.decode(value);
         for (const line of chunk.split("\n")) {
@@ -168,6 +211,8 @@ export default function MainApp() {
           const token = line.replace("data: ", "");
 
           if (token === "[DONE]") {
+            if (chatSession !== chatSessionRef.current) return;
+
             const finalMessages = [
               ...updatedMessages.slice(0, -1),
               { sender: "assistant", text: bufferRef.current }
@@ -186,6 +231,8 @@ export default function MainApp() {
 
           bufferRef.current += token;
           setMessages(prev => {
+            if (chatSession !== chatSessionRef.current) return prev;
+
             const nextMessages = [...prev];
             nextMessages[nextMessages.length - 1].text = bufferRef.current;
             return nextMessages;
@@ -193,6 +240,10 @@ export default function MainApp() {
         }
       }
     } catch (err) {
+      if (err.name === "AbortError" || chatSession !== chatSessionRef.current) {
+        return;
+      }
+
       setMessages(prev => prev.filter((_, index) => index !== prev.length - 1));
 
       if (err.status === 401) {
@@ -202,13 +253,25 @@ export default function MainApp() {
 
       setError(err.message || "Failed to send your message.");
     } finally {
-      setIsTyping(false);
+      if (activeStreamControllerRef.current === streamController) {
+        activeStreamControllerRef.current = null;
+      }
+
+      if (chatSession === chatSessionRef.current) {
+        setIsTyping(false);
+      }
     }
   }
 
   function newChat() {
+    chatSessionRef.current += 1;
+    activeStreamControllerRef.current?.abort();
+    activeStreamControllerRef.current = null;
+    bufferRef.current = "";
     setMessages([{ sender: "assistant", text: "Hello! Describe your symptoms." }]);
     setActiveChatId(null);
+    setInput("");
+    setIsTyping(false);
     setError("");
   }
 
@@ -221,8 +284,14 @@ export default function MainApp() {
         history={history}
         setHistory={setHistory}
         loadChat={chat => {
+          chatSessionRef.current += 1;
+          activeStreamControllerRef.current?.abort();
+          activeStreamControllerRef.current = null;
+          bufferRef.current = "";
           setMessages(chat.messages);
           setActiveChatId(chat._id);
+          setInput("");
+          setIsTyping(false);
           setError("");
         }}
         newChat={newChat}

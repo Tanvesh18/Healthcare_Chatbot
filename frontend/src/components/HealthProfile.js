@@ -207,27 +207,27 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
                 <label>Smoking</label>
                 <select value={form.smoking} onChange={event => updateField("smoking", event.target.value)}>
                   <option value="">Select smoking habit</option>
-                  <option value="No">No</option>
-                  <option value="Yes">Yes</option>
-                  <option value="Occasionally">Occasionally</option>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                  <option value="occasionally">Occasionally</option>
                 </select>
               </div>
               <div className="input-group">
                 <label>Alcohol</label>
                 <select value={form.alcohol} onChange={event => updateField("alcohol", event.target.value)}>
                   <option value="">Select alcohol use</option>
-                  <option value="No">No</option>
-                  <option value="Yes">Yes</option>
-                  <option value="Occasionally">Occasionally</option>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                  <option value="occasionally">Occasionally</option>
                 </select>
               </div>
               <div className="input-group">
                 <label>Activity Level</label>
                 <select value={form.activityLevel} onChange={event => updateField("activityLevel", event.target.value)}>
                   <option value="">Select activity level</option>
-                  <option value="Low">Low</option>
-                  <option value="Moderate">Moderate</option>
-                  <option value="High">High</option>
+                  <option value="low">Low</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="high">High</option>
                 </select>
               </div>
             </div>
