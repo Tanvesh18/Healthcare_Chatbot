@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import SymptomAssessment from "./SymptomAssessment";
 import { 
   FiVolume2, 
   FiCopy, 
@@ -24,6 +25,7 @@ export default function ChatArea({
   const synthRef = useRef(window.speechSynthesis);
   const [speakingIndex, setSpeakingIndex] = useState(null);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [showAssessment, setShowAssessment] = useState(false);
 
   useEffect(() => {
     if (!messagesRef.current) return;
@@ -98,14 +100,15 @@ export default function ChatArea({
           </p>
 
           <div className="hero-prompts-grid">
-            <div 
+            <button
+              type="button"
               className="prompt-card"
-              onClick={() => handlePromptClick("What are the common causes and remedies for a sudden fever?")}
+              onClick={() => setShowAssessment(true)}
             >
               <div className="prompt-icon">🩺</div>
               <div className="prompt-text">Symptom Checker</div>
-              <div className="prompt-subtext">Analyze fever, headache, or pain</div>
-            </div>
+              <div className="prompt-subtext">Share symptoms through a guided assessment</div>
+            </button>
 
             <div 
               className="prompt-card"
@@ -216,6 +219,16 @@ export default function ChatArea({
           </button>
         </div>
       </div>
+
+      {showAssessment && (
+        <SymptomAssessment
+          onClose={() => setShowAssessment(false)}
+          onSubmit={assessmentMessage => {
+            setShowAssessment(false);
+            sendMessage(assessmentMessage);
+          }}
+        />
+      )}
     </div>
   );
 }
