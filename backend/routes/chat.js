@@ -4,7 +4,7 @@ import fetch from "node-fetch";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
 import { detectEmergency } from "../services/emergencyTriage.js";
-import { buildHealthProfileContext } from "../services/healthProfileContext.js";
+import { buildSystemPrompt } from "../services/systemPrompt.js";
 
 const router = express.Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -17,38 +17,6 @@ const OVERPASS_ENDPOINTS = [
   "https://overpass.kumi.systems/api/interpreter",
   "https://overpass.openstreetmap.ru/api/interpreter"
 ];
-
-const SYSTEM_PROMPT = (user, clinics = "", location = null) => `
-You are CuraLink AI - a healthcare assistant with REAL access to nearby clinics when provided.
-
-User: ${user.name}
-
-${buildHealthProfileContext(user)}
-
-${location ? `
-LOCATION ACCESS: GRANTED.
-User coordinates from browser geolocation: ${location.lat}, ${location.lng}
-
-${clinics ? `These are the user's REAL nearby hospitals & clinics.
-YOU MUST USE ONLY THESE RESULTS.
-DO NOT suggest Google search.
-DO NOT say you lack location.
-DO NOT list hospitals from any other city or from memory.
-
-${clinics}` : `The location lookup returned no verified nearby hospitals or clinics for these coordinates.
-Tell the user that no verified nearby results were found and ask them to retry location access or search manually.
-DO NOT invent hospital, clinic, doctor, or city names.`}
-` : `
-LOCATION ACCESS: NOT GRANTED.
-If the user asks for doctors, hospitals or clinics, you MUST ask:
-"May I access your location to find nearby hospitals?"
-`}
-
-Rules:
-- If location is provided and clinic results are provided, list only those clinic results.
-- If location is provided but clinic results are empty, do not list any hospitals.
-- If location is not provided, ask permission before discussing nearby places.
-`;
 
 const toNumber = value => {
   const parsed = Number(value);
@@ -229,7 +197,7 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     const stream = await groq.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT(user, clinics, location) },
+        { role: "system", content: buildSystemPrompt(user, clinics, location) },
         ...req.body.messages
       ],
       stream: true
