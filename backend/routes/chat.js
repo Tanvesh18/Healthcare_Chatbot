@@ -3,6 +3,7 @@ import Groq from "groq-sdk";
 import fetch from "node-fetch";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
+import { detectEmergency } from "../services/emergencyTriage.js";
 import { buildHealthProfileContext } from "../services/healthProfileContext.js";
 
 const router = express.Router();
@@ -206,6 +207,17 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+
+    const latestUserMessage = [...req.body.messages]
+      .reverse()
+      .find(message => message?.role === "user" && typeof message.content === "string");
+    const emergency = detectEmergency(latestUserMessage?.content);
+
+    if (emergency) {
+      res.write(`data: ${emergency.response}\n\n`);
+      res.write("data: [DONE]\n\n");
+      return res.end();
+    }
 
     const location = normalizeLocation(req.body.location);
     let clinics = "";
