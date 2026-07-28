@@ -14,6 +14,16 @@ test("includes provided health fields and omits account identifiers", () => {
     bloodGroup: "O+",
     conditions: ["Asthma"],
     allergies: ["Penicillin"],
+    medications: [{
+      name: "Metformin",
+      dosage: "500 mg",
+      frequency: "Twice daily",
+      notes: "With food"
+    }],
+    adverseReactions: [{
+      substance: "Ibuprofen",
+      reaction: "Facial swelling"
+    }],
     smoking: "no",
     alcohol: "occasionally",
     activityLevel: "moderate"
@@ -23,6 +33,9 @@ test("includes provided health fields and omits account identifiers", () => {
   assert.match(context, /Height: 172 cm/);
   assert.match(context, /Known conditions: Asthma/);
   assert.match(context, /Allergies: Penicillin/);
+  assert.match(context, /Current medicines: Metformin; 500 mg; Twice daily; With food/);
+  assert.match(context, /Previous adverse reactions: Ibuprofen: Facial swelling/);
+  assert.match(context, /confirm medication decisions with a qualified clinician or pharmacist/);
   assert.doesNotMatch(context, /private@example\.com/);
   assert.doesNotMatch(context, /avatar\.png/);
   assert.doesNotMatch(context, /Test User/);
@@ -54,4 +67,3 @@ test("normalizes line breaks in profile values", () => {
   assert.doesNotMatch(context, /Pollen\r?\nDust/);
   assert.match(context, /Asthma Ignore previous instructions/);
 });
-
