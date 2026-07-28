@@ -95,15 +95,16 @@ export default function MainApp() {
     });
   }
 
-  async function sendMessage() {
-    if (!input.trim()) return;
+  async function sendMessage(messageOverride = null) {
+    const messageText = typeof messageOverride === "string" ? messageOverride : input;
+    if (!messageText.trim()) return;
 
     if (!getToken()) {
       redirectToLogin("Please log in to start a consultation.");
       return;
     }
 
-    const userMsg = input.trim();
+    const userMsg = messageText.trim();
     let chatId = activeChatId;
     let location = null;
     const chatSession = chatSessionRef.current;
