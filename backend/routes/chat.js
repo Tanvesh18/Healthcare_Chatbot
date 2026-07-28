@@ -3,6 +3,7 @@ import Groq from "groq-sdk";
 import fetch from "node-fetch";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
+import { buildHealthProfileContext } from "../services/healthProfileContext.js";
 
 const router = express.Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -20,6 +21,8 @@ const SYSTEM_PROMPT = (user, clinics = "", location = null) => `
 You are CuraLink AI - a healthcare assistant with REAL access to nearby clinics when provided.
 
 User: ${user.name}
+
+${buildHealthProfileContext(user)}
 
 ${location ? `
 LOCATION ACCESS: GRANTED.
