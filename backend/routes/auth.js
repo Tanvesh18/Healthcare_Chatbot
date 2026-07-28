@@ -4,6 +4,10 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
+import {
+  normalizeAdverseReactions,
+  normalizeMedications
+} from "../services/medicationProfile.js";
 
 const router = express.Router();
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
@@ -21,6 +25,8 @@ const PROFILE_FIELDS = [
   "bloodGroup",
   "conditions",
   "allergies",
+  "medications",
+  "adverseReactions",
   "smoking",
   "alcohol",
   "activityLevel"
@@ -194,6 +200,8 @@ function buildProfileUpdate(body) {
   update.bloodGroup = body.bloodGroup !== undefined ? String(body.bloodGroup).trim().toUpperCase().slice(0, 8) : undefined;
   update.conditions = parseStringArray(body.conditions, "conditions");
   update.allergies = parseStringArray(body.allergies, "allergies");
+  update.medications = normalizeMedications(body.medications);
+  update.adverseReactions = normalizeAdverseReactions(body.adverseReactions);
   update.smoking = parseEnum(body.smoking, "smoking", ["yes", "no", "occasionally"]);
   update.alcohol = parseEnum(body.alcohol, "alcohol", ["yes", "no", "occasionally"]);
   update.activityLevel = parseEnum(body.activityLevel, "activityLevel", ["low", "moderate", "high"]);
