@@ -1,5 +1,18 @@
 import { useState } from "react";
-import { FiX, FiCheck, FiUser, FiHeart, FiActivity, FiDroplet, FiShield, FiWind } from "react-icons/fi";
+import {
+  FiX,
+  FiCheck,
+  FiUser,
+  FiHeart,
+  FiActivity,
+  FiDroplet,
+  FiShield,
+  FiWind,
+  FiPlus,
+  FiTrash2,
+  FiPackage,
+  FiAlertTriangle
+} from "react-icons/fi";
 import { apiJson } from "../api";
 import "../auth/Auth.css";
 
@@ -18,6 +31,16 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
     bloodGroup: user.bloodGroup || "",
     conditions: (user.conditions || []).join(", "),
     allergies: (user.allergies || []).join(", "),
+    medications: (user.medications || []).map(medication => ({
+      name: medication.name || "",
+      dosage: medication.dosage || "",
+      frequency: medication.frequency || "",
+      notes: medication.notes || ""
+    })),
+    adverseReactions: (user.adverseReactions || []).map(reaction => ({
+      substance: reaction.substance || "",
+      reaction: reaction.reaction || ""
+    })),
     smoking: user.smoking || "",
     alcohol: user.alcohol || "",
     activityLevel: user.activityLevel || ""
@@ -35,19 +58,81 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
     form.bloodGroup,
     form.conditions,
     form.allergies,
+    form.medications.length > 0,
+    form.adverseReactions.length > 0,
     form.smoking,
     form.alcohol,
     form.activityLevel
   ].filter(Boolean).length;
-  const completionPercent = Math.round((completedFields / 10) * 100);
+  const completionPercent = Math.round((completedFields / 12) * 100);
 
   function updateField(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
   }
 
+  function addMedication() {
+    setForm(prev => ({
+      ...prev,
+      medications: [
+        ...prev.medications,
+        { name: "", dosage: "", frequency: "", notes: "" }
+      ]
+    }));
+  }
+
+  function updateMedication(index, field, value) {
+    setForm(prev => ({
+      ...prev,
+      medications: prev.medications.map((medication, medicationIndex) =>
+        medicationIndex === index ? { ...medication, [field]: value } : medication
+      )
+    }));
+  }
+
+  function removeMedication(index) {
+    setForm(prev => ({
+      ...prev,
+      medications: prev.medications.filter((_, medicationIndex) => medicationIndex !== index)
+    }));
+  }
+
+  function addAdverseReaction() {
+    setForm(prev => ({
+      ...prev,
+      adverseReactions: [
+        ...prev.adverseReactions,
+        { substance: "", reaction: "" }
+      ]
+    }));
+  }
+
+  function updateAdverseReaction(index, field, value) {
+    setForm(prev => ({
+      ...prev,
+      adverseReactions: prev.adverseReactions.map((reaction, reactionIndex) =>
+        reactionIndex === index ? { ...reaction, [field]: value } : reaction
+      )
+    }));
+  }
+
+  function removeAdverseReaction(index) {
+    setForm(prev => ({
+      ...prev,
+      adverseReactions: prev.adverseReactions.filter((_, reactionIndex) => reactionIndex !== index)
+    }));
+  }
+
   async function save() {
     try {
       setError("");
+
+      if (form.medications.some(medication => !medication.name.trim())) {
+        throw new Error("Each medication entry requires a medicine name.");
+      }
+
+      if (form.adverseReactions.some(reaction => !reaction.substance.trim())) {
+        throw new Error("Each adverse reaction requires a medicine or substance.");
+      }
 
       const updatedUser = await apiJson("/api/auth/profile", {
         method: "PUT",
@@ -93,7 +178,7 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
             </div>
             <div>
               <span className="profile-summary-label">Profile completion</span>
-              <strong>{completedFields} of 10 fields completed</strong>
+              <strong>{completedFields} of 12 fields completed</strong>
             </div>
           </div>
 
@@ -193,6 +278,142 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
             {allergyTags.length > 0 && (
               <div className="profile-chip-row">
                 {allergyTags.map(item => <span key={item} className="profile-chip profile-chip-warn">{item}</span>)}
+              </div>
+            )}
+          </section>
+
+          <section className="form-section form-section-wide">
+            <div className="section-heading profile-section-heading-actions">
+              <div>
+                <span className="section-title"><FiPackage /> Current Medicines</span>
+                <p>Include prescriptions, over-the-counter medicines, vitamins, and supplements.</p>
+              </div>
+              <button
+                type="button"
+                className="profile-add-entry"
+                onClick={addMedication}
+                disabled={form.medications.length >= 20}
+              >
+                <FiPlus /> Add medicine
+              </button>
+            </div>
+
+            {form.medications.length === 0 ? (
+              <p className="profile-entry-empty">No current medicines recorded.</p>
+            ) : (
+              <div className="profile-entry-list">
+                {form.medications.map((medication, index) => (
+                  <div className="medication-entry" key={`medication-${index}`}>
+                    <div className="input-group">
+                      <label htmlFor={`medication-name-${index}`}>Medicine name</label>
+                      <input
+                        id={`medication-name-${index}`}
+                        placeholder="e.g. Metformin"
+                        value={medication.name}
+                        maxLength={120}
+                        onChange={event => updateMedication(index, "name", event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor={`medication-dosage-${index}`}>Dosage</label>
+                      <input
+                        id={`medication-dosage-${index}`}
+                        placeholder="e.g. 500 mg"
+                        value={medication.dosage}
+                        maxLength={160}
+                        onChange={event => updateMedication(index, "dosage", event.target.value)}
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor={`medication-frequency-${index}`}>Frequency</label>
+                      <input
+                        id={`medication-frequency-${index}`}
+                        placeholder="e.g. twice daily"
+                        value={medication.frequency}
+                        maxLength={160}
+                        onChange={event => updateMedication(index, "frequency", event.target.value)}
+                      />
+                    </div>
+                    <div className="input-group medication-notes">
+                      <label htmlFor={`medication-notes-${index}`}>Notes</label>
+                      <input
+                        id={`medication-notes-${index}`}
+                        placeholder="e.g. take with food"
+                        value={medication.notes}
+                        maxLength={300}
+                        onChange={event => updateMedication(index, "notes", event.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="profile-remove-entry"
+                      onClick={() => removeMedication(index)}
+                      aria-label={`Remove ${medication.name || `medicine ${index + 1}`}`}
+                      title="Remove medicine"
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="form-section form-section-wide">
+            <div className="section-heading profile-section-heading-actions">
+              <div>
+                <span className="section-title"><FiAlertTriangle /> Previous Adverse Reactions</span>
+                <p>Record medicines or substances that previously caused an unwanted reaction.</p>
+              </div>
+              <button
+                type="button"
+                className="profile-add-entry"
+                onClick={addAdverseReaction}
+                disabled={form.adverseReactions.length >= 20}
+              >
+                <FiPlus /> Add reaction
+              </button>
+            </div>
+
+            {form.adverseReactions.length === 0 ? (
+              <p className="profile-entry-empty">No previous adverse reactions recorded.</p>
+            ) : (
+              <div className="profile-entry-list">
+                {form.adverseReactions.map((item, index) => (
+                  <div className="reaction-entry" key={`reaction-${index}`}>
+                    <div className="input-group">
+                      <label htmlFor={`reaction-substance-${index}`}>Medicine or substance</label>
+                      <input
+                        id={`reaction-substance-${index}`}
+                        placeholder="e.g. Ibuprofen"
+                        value={item.substance}
+                        maxLength={120}
+                        onChange={event => updateAdverseReaction(index, "substance", event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor={`reaction-description-${index}`}>What happened?</label>
+                      <input
+                        id={`reaction-description-${index}`}
+                        placeholder="e.g. facial swelling"
+                        value={item.reaction}
+                        maxLength={300}
+                        onChange={event => updateAdverseReaction(index, "reaction", event.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="profile-remove-entry"
+                      onClick={() => removeAdverseReaction(index)}
+                      aria-label={`Remove reaction to ${item.substance || `entry ${index + 1}`}`}
+                      title="Remove reaction"
+                    >
+                      <FiTrash2 />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </section>
