@@ -223,7 +223,7 @@ Create a `.env` file in the `backend` directory:
 
 ```env
 # MongoDB Connection
-MONGO_URI=mongodb://localhost:27017/techfiesta
+MONGO_URI=your-mongo-uri
 
 # JWT Secret (use a strong random string)
 JWT_SECRET=your-super-secret-jwt-key-here
