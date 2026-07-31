@@ -22,7 +22,10 @@ test("combines safety rules with relevant health-profile context", () => {
   const prompt = buildSystemPrompt({
     age: 34,
     conditions: ["Asthma"],
-    allergies: ["Penicillin"]
+    allergies: ["Penicillin"],
+    privacyConsents: {
+      aiProfilePersonalization: { enabled: true }
+    }
   });
 
   assert.match(prompt, /Age: 34/);
@@ -44,11 +47,24 @@ test("limits facility guidance to verified lookup results", () => {
   const prompt = buildSystemPrompt(
     {},
     "- Example Clinic (1.2 km away)",
-    { lat: 12.3, lng: 45.6 }
+    true
   );
 
   assert.match(prompt, /only verified nearby results/i);
   assert.match(prompt, /Example Clinic/);
   assert.match(prompt, /Do not add facilities from memory/i);
+  assert.doesNotMatch(prompt, /12\.3/);
+  assert.doesNotMatch(prompt, /45\.6/);
+});
+
+test("excludes stored health details without personalization consent", () => {
+  const prompt = buildSystemPrompt({
+    age: 34,
+    conditions: ["Asthma"]
+  });
+
+  assert.match(prompt, /HEALTH PROFILE CONTEXT: NOT AUTHORIZED/);
+  assert.doesNotMatch(prompt, /Age: 34/);
+  assert.doesNotMatch(prompt, /Known conditions: Asthma/);
 });
 

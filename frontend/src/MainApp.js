@@ -10,9 +10,11 @@ const MIN_SIDEBAR_WIDTH = 260;
 const MAX_SIDEBAR_WIDTH = 420;
 const LOCATION_UNAVAILABLE_MESSAGE =
   "To suggest nearby doctors or hospitals, I need access to your location. Please allow location permission and try again.";
+const LOCATION_CONSENT_REQUIRED_MESSAGE =
+  "Nearby-care search is off in Privacy Settings. Enable it there before sharing your location.";
 
 function isNearbyRequest(text) {
-  return /near me|nearby|around me|doctor|hospital|clinic|medical|emergency/i.test(text);
+  return /\b(near me|nearby|around me|nearest|closest)\b.*\b(doctor|hospital|clinic|pharmacy|care)\b|\b(doctor|hospital|clinic|pharmacy)\b.*\b(near me|nearby|around me|nearest|closest)\b/i.test(text);
 }
 
 function isLocationConsent(text, messages) {
@@ -59,6 +61,7 @@ export default function MainApp() {
   const [history, setHistory] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [error, setError] = useState("");
+  const [locationCareSearchEnabled, setLocationCareSearchEnabled] = useState(false);
   const bufferRef = useRef("");
   const activeStreamControllerRef = useRef(null);
   const chatSessionRef = useRef(0);
@@ -83,6 +86,22 @@ export default function MainApp() {
   useEffect(() => {
     refreshHistory();
   }, [refreshHistory]);
+
+  useEffect(() => {
+    if (!getToken()) return;
+
+    apiJson("/api/auth/me")
+      .then(user => {
+        setLocationCareSearchEnabled(
+          user.privacyConsents?.locationCareSearch?.enabled === true
+        );
+      })
+      .catch(err => {
+        if (err.status === 401) {
+          redirectToLogin(err.message);
+        }
+      });
+  }, [redirectToLogin]);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
@@ -116,6 +135,16 @@ export default function MainApp() {
     const wantsNearby = isNearbyRequest(userMsg) || isLocationConsent(userMsg, messages);
 
     if (wantsNearby) {
+      if (!locationCareSearchEnabled) {
+        setMessages(prev => [
+          ...prev,
+          { sender: "user", text: userMsg },
+          { sender: "assistant", text: LOCATION_CONSENT_REQUIRED_MESSAGE }
+        ]);
+        setIsTyping(false);
+        return;
+      }
+
       location = await requestBrowserLocation();
 
       if (!location) {
@@ -133,6 +162,7 @@ export default function MainApp() {
         return;
       }
 
+      console.log("Browser location:", location);
     }
 
     if (!chatId) {
