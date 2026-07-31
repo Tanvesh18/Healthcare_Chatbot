@@ -218,7 +218,7 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error) {
-    console.error("Chat stream failed");
+    console.error(error);
 
     if (!res.headersSent) {
       return res.status(500).json({ message: "Failed to generate chat response" });

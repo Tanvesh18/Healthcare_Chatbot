@@ -161,6 +161,8 @@ export default function MainApp() {
         setIsTyping(false);
         return;
       }
+
+      console.log("Browser location:", location);
     }
 
     if (!chatId) {
