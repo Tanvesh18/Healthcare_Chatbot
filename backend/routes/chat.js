@@ -4,6 +4,7 @@ import fetch from "node-fetch";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
 import { detectEmergency } from "../services/emergencyTriage.js";
+import { getChatPrivacyState } from "../services/privacyConsents.js";
 import { buildSystemPrompt } from "../services/systemPrompt.js";
 
 const router = express.Router();
@@ -91,16 +92,13 @@ const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
         break;
       }
 
-      const errorText = await res.text().catch(() => "");
+      console.warn("OpenStreetMap lookup failed:", new URL(endpoint).hostname, res.status);
+    } catch (error) {
       console.warn(
         "OpenStreetMap lookup failed:",
-        endpoint,
-        res.status,
-        res.statusText,
-        errorText.slice(0, 180)
+        new URL(endpoint).hostname,
+        error.name === "AbortError" ? "timeout" : "request-error"
       );
-    } catch (error) {
-      console.warn("OpenStreetMap lookup failed:", endpoint, error.name === "AbortError" ? "timeout" : error.message);
     } finally {
       clearTimeout(timeout);
     }
@@ -135,10 +133,9 @@ const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
 
 const fetchNearbyClinics = async (lat, lng) => {
   try {
-    console.log("Nearby clinic lookup coordinates:", lat, lng);
     return await fetchOpenStreetMapNearbyClinics(lat, lng);
-  } catch (error) {
-    console.warn("Nearby clinic lookup failed:", error.message);
+  } catch {
+    console.warn("Nearby clinic lookup failed");
     return "";
   }
 };
@@ -172,6 +169,15 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const locationRequested = req.body.location !== undefined && req.body.location !== null;
+    const privacyState = getChatPrivacyState(user, locationRequested);
+    if (privacyState.locationConsentRequired) {
+      return res.status(403).json({
+        code: "LOCATION_CONSENT_REQUIRED",
+        message: "Enable nearby-care search in Privacy Settings before sharing your location."
+      });
+    }
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -190,14 +196,13 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     const location = normalizeLocation(req.body.location);
     let clinics = "";
     if (location) {
-      console.log("Browser location accuracy:", location.accuracy === null ? "unknown" : `${Math.round(location.accuracy)}m`);
       clinics = await fetchNearbyClinics(location.lat, location.lng);
     }
 
     const stream = await groq.chat.completions.create({
       model,
       messages: [
-        { role: "system", content: buildSystemPrompt(user, clinics, location) },
+        { role: "system", content: buildSystemPrompt(user, clinics, Boolean(location)) },
         ...req.body.messages
       ],
       stream: true
@@ -213,7 +218,7 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error) {
-    console.error(error);
+    console.error("Chat stream failed");
 
     if (!res.headersSent) {
       return res.status(500).json({ message: "Failed to generate chat response" });

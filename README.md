@@ -550,6 +550,48 @@ npm run build
 
 ---
 
+## 🔐 Privacy and Data Controls
+
+Health-profile personalization and nearby-care search are optional. Both are disabled by default, including for existing accounts that do not yet have saved consent preferences.
+
+### Optional data sharing
+
+- **AI profile personalization**: When enabled, relevant saved health-profile details are included in Groq requests to improve the response. When disabled, the assistant only uses information provided in the current conversation.
+- **Nearby-care search**: When enabled and the user requests nearby care, the browser may ask for location permission. Coordinates are sent to OpenStreetMap Overpass to find nearby facilities. CuraLink does not log exact coordinates.
+
+Browser location permission and the app's nearby-care setting are separate. Both must allow access before the application collects or forwards coordinates. Revoking either privacy setting takes effect on the next request.
+
+### Data endpoints
+
+#### `PATCH /api/auth/privacy-consents`
+
+Save one or both optional sharing preferences. The server enforces these preferences for every chat request.
+
+```json
+{
+  "aiProfilePersonalization": true,
+  "locationCareSearch": false
+}
+```
+
+#### `GET /api/auth/data-export`
+
+Downloads a JSON export with account metadata, saved health profile, privacy preferences, and chat history. Password hashes and provider identifiers are never included.
+
+#### `DELETE /api/auth/data`
+
+Permanently removes saved health-profile data, privacy preferences, and chat history while retaining the account so the user can continue to sign in.
+
+```json
+{
+  "confirm": "DELETE"
+}
+```
+
+This action cannot be undone. Chat messages still need to be sent to Groq to generate a response. The optional privacy setting controls whether saved profile context is added to that request.
+
+---
+
 ## 🔒 Security Considerations
 
 - ✅ Passwords are hashed using bcrypt
