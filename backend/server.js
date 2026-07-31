@@ -19,7 +19,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/chat", chatRoutes);
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.error("Request failed", {
+    name: err?.name || "Error",
+    status: err?.status || 500,
+    method: req.method,
+    path: req.path
+  });
 
   if (res.headersSent) {
     return next(err);

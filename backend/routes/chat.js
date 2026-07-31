@@ -135,7 +135,6 @@ const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
 
 const fetchNearbyClinics = async (lat, lng) => {
   try {
-    console.log("Nearby clinic lookup coordinates:", lat, lng);
     return await fetchOpenStreetMapNearbyClinics(lat, lng);
   } catch (error) {
     console.warn("Nearby clinic lookup failed:", error.message);
@@ -190,7 +189,6 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     const location = normalizeLocation(req.body.location);
     let clinics = "";
     if (location) {
-      console.log("Browser location accuracy:", location.accuracy === null ? "unknown" : `${Math.round(location.accuracy)}m`);
       clinics = await fetchNearbyClinics(location.lat, location.lng);
     }
 
@@ -213,7 +211,10 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     res.write("data: [DONE]\n\n");
     res.end();
   } catch (error) {
-    console.error(error);
+    console.error("Chat stream failed", {
+      name: error?.name || "Error",
+      status: error?.status
+    });
 
     if (!res.headersSent) {
       return res.status(500).json({ message: "Failed to generate chat response" });

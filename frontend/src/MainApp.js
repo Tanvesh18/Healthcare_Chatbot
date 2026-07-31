@@ -133,7 +133,6 @@ export default function MainApp() {
         return;
       }
 
-      console.log("Browser location:", location);
     }
 
     if (!chatId) {
