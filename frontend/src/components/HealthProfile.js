@@ -13,7 +13,7 @@ import {
   FiPackage,
   FiAlertTriangle
 } from "react-icons/fi";
-import { apiJson } from "../api";
+import { apiFetch, apiJson } from "../api";
 import "../auth/Auth.css";
 
 const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -22,8 +22,8 @@ function splitTags(value) {
   return value.split(",").map(item => item.trim()).filter(Boolean);
 }
 
-export default function HealthProfile({ user, onClose, onSaved, standalone = false }) {
-  const [form, setForm] = useState({
+function getProfileForm(user = {}) {
+  return {
     age: user.age || "",
     height: user.height || "",
     weight: user.weight || "",
@@ -44,9 +44,26 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
     smoking: user.smoking || "",
     alcohol: user.alcohol || "",
     activityLevel: user.activityLevel || ""
-  });
+  };
+}
+
+function getPrivacyConsentValues(user = {}) {
+  return {
+    aiProfilePersonalization:
+      user.privacyConsents?.aiProfilePersonalization?.enabled === true,
+    locationCareSearch:
+      user.privacyConsents?.locationCareSearch?.enabled === true
+  };
+}
+
+export default function HealthProfile({ user, onClose, onSaved, standalone = false }) {
+  const [form, setForm] = useState(() => getProfileForm(user));
+  const [privacyConsents, setPrivacyConsents] = useState(() => getPrivacyConsentValues(user));
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [privacyStatus, setPrivacyStatus] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeletingData, setIsDeletingData] = useState(false);
 
   const conditionTags = splitTags(form.conditions);
   const allergyTags = splitTags(form.allergies);
@@ -68,6 +85,10 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
 
   function updateField(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  function updatePrivacyConsent(field, enabled) {
+    setPrivacyConsents(prev => ({ ...prev, [field]: enabled }));
   }
 
   function addMedication() {
@@ -150,6 +171,71 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
       }
     } catch (err) {
       setError(err.message || "Failed to save profile");
+    }
+  }
+
+  async function savePrivacySettings() {
+    try {
+      setError("");
+      setPrivacyStatus("");
+      const updatedUser = await apiJson("/api/auth/privacy-consents", {
+        method: "PATCH",
+        body: JSON.stringify(privacyConsents)
+      });
+      setPrivacyConsents(getPrivacyConsentValues(updatedUser));
+      onSaved?.(updatedUser);
+      setPrivacyStatus("Privacy settings saved.");
+    } catch (err) {
+      setError(err.message || "Failed to save privacy settings.");
+    }
+  }
+
+  async function exportData() {
+    try {
+      setError("");
+      const response = await apiFetch("/api/auth/data-export");
+      if (!response.ok) {
+        throw new Error("Failed to export your data.");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "curalink-data-export.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setPrivacyStatus("Your data export has been downloaded.");
+    } catch (err) {
+      setError(err.message || "Failed to export your data.");
+    }
+  }
+
+  async function deleteData() {
+    if (deleteConfirmation !== "DELETE") {
+      setError("Type DELETE to confirm data deletion.");
+      return;
+    }
+
+    try {
+      setError("");
+      setIsDeletingData(true);
+      const result = await apiJson("/api/auth/data", {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: "DELETE" })
+      });
+      const clearedUser = result.user || {};
+      setForm(getProfileForm(clearedUser));
+      setPrivacyConsents(getPrivacyConsentValues(clearedUser));
+      setDeleteConfirmation("");
+      onSaved?.(clearedUser);
+      setPrivacyStatus("Your health profile and chat history have been deleted. Your account remains available.");
+    } catch (err) {
+      setError(err.message || "Failed to delete your data.");
+    } finally {
+      setIsDeletingData(false);
     }
   }
 
@@ -451,6 +537,64 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
                   <option value="high">High</option>
                 </select>
               </div>
+            </div>
+          </section>
+
+          <section className="form-section form-section-wide privacy-settings">
+            <div className="section-heading">
+              <span className="section-title"><FiShield /> Privacy settings</span>
+              <p>These choices control optional data sharing. They are off until you enable them.</p>
+            </div>
+
+            <fieldset className="privacy-consent-list">
+              <legend>Optional sharing permissions</legend>
+              <label className="privacy-consent-option">
+                <input
+                  type="checkbox"
+                  checked={privacyConsents.aiProfilePersonalization}
+                  onChange={event => updatePrivacyConsent("aiProfilePersonalization", event.target.checked)}
+                />
+                <span>
+                  <strong>Use my saved health profile to personalize AI responses</strong>
+                  <small>Relevant saved health details are sent to Groq only when this setting is enabled.</small>
+                </span>
+              </label>
+              <label className="privacy-consent-option">
+                <input
+                  type="checkbox"
+                  checked={privacyConsents.locationCareSearch}
+                  onChange={event => updatePrivacyConsent("locationCareSearch", event.target.checked)}
+                />
+                <span>
+                  <strong>Use my location to find nearby care</strong>
+                  <small>Your coordinates are sent to OpenStreetMap Overpass only for a nearby-care request.</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <div className="privacy-actions">
+              <button type="button" className="btn-cancel" onClick={savePrivacySettings}>Save privacy settings</button>
+              <button type="button" className="btn-cancel" onClick={exportData}>Export my data</button>
+            </div>
+            {privacyStatus && <p className="privacy-status" role="status">{privacyStatus}</p>}
+
+            <div className="privacy-delete-panel">
+              <strong>Delete health data and chat history</strong>
+              <p>This permanently deletes saved health profile information, privacy settings, and chat history. Your account remains available.</p>
+              <label htmlFor="delete-data-confirmation">Type DELETE to confirm</label>
+              <div className="privacy-delete-actions">
+                <input
+                  id="delete-data-confirmation"
+                  value={deleteConfirmation}
+                  onChange={event => setDeleteConfirmation(event.target.value)}
+                  placeholder="DELETE"
+                  aria-describedby="delete-data-help"
+                />
+                <button type="button" className="privacy-delete-button" onClick={deleteData} disabled={isDeletingData}>
+                  {isDeletingData ? "Deleting..." : "Delete my data"}
+                </button>
+              </div>
+              <small id="delete-data-help">This action cannot be undone.</small>
             </div>
           </section>
         </div>

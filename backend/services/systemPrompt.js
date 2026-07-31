@@ -1,4 +1,5 @@
 import { buildHealthProfileContext } from "./healthProfileContext.js";
+import { isConsentEnabled } from "./privacyConsents.js";
 
 export const MEDICAL_SAFETY_RULES = `MEDICAL SAFETY AND RESPONSE RULES:
 - Provide general health information and decision support, not a diagnosis, prescription, or substitute for an in-person clinician.
@@ -16,11 +17,11 @@ export const MEDICAL_SAFETY_RULES = `MEDICAL SAFETY AND RESPONSE RULES:
 - Keep the response clear and readable. Use short paragraphs or Markdown lists when they improve comprehension.
 - Do not offer location access or nearby-facility search unless the user asks for nearby care or the situation requires urgent in-person evaluation.`;
 
-function buildLocationContext(clinics, location) {
-  if (!location) {
+function buildLocationContext(clinics, locationAuthorized) {
+  if (!locationAuthorized) {
     return `LOCATION ACCESS: NOT GRANTED.
 If the user asks for nearby doctors, hospitals, or clinics, ask:
-"May I access your location to find nearby hospitals?"
+"You can enable nearby-care search in Privacy Settings."
 Do not imply that location access is needed for unrelated health questions.`;
   }
 
@@ -33,19 +34,22 @@ Use only these results. Do not add facilities from memory or imply that missing 
 Do not invent a hospital, clinic, doctor, pharmacy, or city. Ask the user to retry location access or search manually.`;
 
   return `LOCATION ACCESS: GRANTED.
-Browser-provided coordinates: ${location.lat}, ${location.lng}
-
 ${verifiedResults}`;
 }
 
-export function buildSystemPrompt(user, clinics = "", location = null) {
+export function buildSystemPrompt(user, clinics = "", locationAuthorized = false) {
+  const healthProfileContext = isConsentEnabled(user, "aiProfilePersonalization")
+    ? buildHealthProfileContext(user)
+    : `HEALTH PROFILE CONTEXT: NOT AUTHORIZED.
+Do not use or mention stored health-profile information. Ask the user for relevant details in this conversation when needed.`;
+
   return `You are CuraLink AI, a healthcare information assistant.
 
 ${MEDICAL_SAFETY_RULES}
 
-${buildHealthProfileContext(user)}
+${healthProfileContext}
 
 LOCATION RULES:
-${buildLocationContext(clinics, location)}`;
+${buildLocationContext(clinics, locationAuthorized)}`;
 }
 

@@ -23,6 +23,13 @@ const adverseReactionSchema = new mongoose.Schema({
   reaction: { type: String, trim: true, maxlength: 300 }
 }, { _id: false });
 
+const privacyConsentSchema = new mongoose.Schema({
+  enabled: { type: Boolean, default: false },
+  grantedAt: { type: Date, default: null },
+  revokedAt: { type: Date, default: null },
+  policyVersion: { type: String, default: "1.0" }
+}, { _id: false });
+
 const userSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true },
@@ -41,6 +48,10 @@ const userSchema = new mongoose.Schema({
   smoking: String,         // yes / no / occasionally
   alcohol: String,         // yes / no / occasionally
   activityLevel: String,   // low / moderate / high
+  privacyConsents: {
+    aiProfilePersonalization: { type: privacyConsentSchema, default: () => ({}) },
+    locationCareSearch: { type: privacyConsentSchema, default: () => ({}) }
+  },
 
   chats: [chatSchema]
 });

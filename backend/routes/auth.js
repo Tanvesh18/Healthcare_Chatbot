@@ -8,6 +8,10 @@ import {
   normalizeAdverseReactions,
   normalizeMedications
 } from "../services/medicationProfile.js";
+import {
+  buildConsentRecord,
+  getPrivacyConsents
+} from "../services/privacyConsents.js";
 
 const router = express.Router();
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
@@ -30,6 +34,10 @@ const PROFILE_FIELDS = [
   "smoking",
   "alcohol",
   "activityLevel"
+];
+const PRIVACY_CONSENT_FIELDS = [
+  "aiProfilePersonalization",
+  "locationCareSearch"
 ];
 
 function badRequest(message) {
@@ -211,6 +219,35 @@ function buildProfileUpdate(body) {
   );
 }
 
+function parsePrivacyConsentUpdate(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw badRequest("Privacy consent preferences are required");
+  }
+
+  const fields = Object.keys(body);
+  if (fields.length === 0) {
+    throw badRequest("At least one privacy consent preference is required");
+  }
+
+  const disallowedField = fields.find(field => !PRIVACY_CONSENT_FIELDS.includes(field));
+  if (disallowedField) {
+    throw badRequest(`Field not allowed: ${disallowedField}`);
+  }
+
+  return Object.fromEntries(fields.map(field => {
+    if (typeof body[field] !== "boolean") {
+      throw badRequest(`${field} must be a boolean`);
+    }
+
+    return [field, body[field]];
+  }));
+}
+
+function publicUser(user) {
+  const { password, googleId, ...safeUser } = user.toObject ? user.toObject() : user;
+  return safeUser;
+}
+
 router.post("/signup", async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -328,7 +365,7 @@ router.post("/google", async (req, res, next) => {
 
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.auth.id).select("-password");
+    const user = await User.findById(req.auth.id).select("-password -googleId");
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json(user);
   } catch (error) {
@@ -346,10 +383,85 @@ router.put("/profile", requireAuth, async (req, res, next) => {
     const user = await User.findByIdAndUpdate(req.auth.id, buildProfileUpdate(req.body), {
       new: true,
       runValidators: true
-    }).select("-password");
+    }).select("-password -googleId");
 
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/privacy-consents", requireAuth, async (req, res, next) => {
+  try {
+    const preferences = parsePrivacyConsentUpdate(req.body);
+    const user = await User.findById(req.auth.id);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const now = new Date();
+    for (const [field, enabled] of Object.entries(preferences)) {
+      if (user.privacyConsents?.[field]?.enabled !== enabled) {
+        user.set(`privacyConsents.${field}`, buildConsentRecord(enabled, now));
+      }
+    }
+    await user.save();
+
+    user.password = undefined;
+    user.googleId = undefined;
+    res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/data-export", requireAuth, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.auth.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const healthProfile = Object.fromEntries(
+      PROFILE_FIELDS.map(field => [field, user[field]])
+    );
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Disposition", "attachment; filename=\"curalink-data-export.json\"");
+    res.json({
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      account: {
+        id: String(user._id),
+        name: user.name,
+        email: user.email
+      },
+      healthProfile,
+      privacyConsents: getPrivacyConsents(user),
+      chats: user.chats
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/data", requireAuth, async (req, res, next) => {
+  try {
+    if (req.body?.confirm !== "DELETE") {
+      throw badRequest("Type DELETE to confirm data deletion");
+    }
+
+    const unsetProfile = Object.fromEntries([
+      ...PROFILE_FIELDS,
+      "privacyConsents"
+    ].map(field => [field, 1]));
+    const user = await User.findByIdAndUpdate(
+      req.auth.id,
+      {
+        $unset: unsetProfile,
+        $set: { chats: [] }
+      },
+      { new: true, runValidators: true }
+    ).select("-password -googleId");
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ user: publicUser(user) });
   } catch (error) {
     next(error);
   }
