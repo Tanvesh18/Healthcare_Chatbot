@@ -17,8 +17,14 @@ export const MEDICAL_SAFETY_RULES = `MEDICAL SAFETY AND RESPONSE RULES:
 - Keep the response clear and readable. Use short paragraphs or Markdown lists when they improve comprehension.
 - Do not offer location access or nearby-facility search unless the user asks for nearby care or the situation requires urgent in-person evaluation.`;
 
-function buildLocationContext(clinics, locationAuthorized) {
+function buildLocationContext(clinics, locationAuthorized, locationConsentEnabled) {
   if (!locationAuthorized) {
+    if (locationConsentEnabled) {
+      return `LOCATION ACCESS: CONSENT ENABLED, COORDINATES NOT PROVIDED.
+If the user asks for nearby care, ask them to retry and allow browser location access.
+Do not say that nearby-care search is disabled.`;
+    }
+
     return `LOCATION ACCESS: NOT GRANTED.
 If the user asks for nearby doctors, hospitals, or clinics, ask:
 "You can enable nearby-care search in Privacy Settings."
@@ -50,6 +56,10 @@ ${MEDICAL_SAFETY_RULES}
 ${healthProfileContext}
 
 LOCATION RULES:
-${buildLocationContext(clinics, locationAuthorized)}`;
+${buildLocationContext(
+  clinics,
+  locationAuthorized,
+  isConsentEnabled(user, "locationCareSearch")
+)}`;
 }
 

@@ -557,7 +557,7 @@ Health-profile personalization and nearby-care search are optional. Both are dis
 ### Optional data sharing
 
 - **AI profile personalization**: When enabled, relevant saved health-profile details are included in Groq requests to improve the response. When disabled, the assistant only uses information provided in the current conversation.
-- **Nearby-care search**: When enabled and the user requests nearby care, the browser may ask for location permission. Coordinates are sent to OpenStreetMap Overpass to find nearby facilities. CuraLink does not log exact coordinates.
+- **Nearby-care search**: When enabled and the user requests nearby care, the browser may ask for location permission. Coordinates are sent to OpenStreetMap Overpass to find nearby facilities; OpenStreetMap Nominatim is used as a fallback when Overpass is unavailable. CuraLink does not log exact coordinates.
 
 Browser location permission and the app's nearby-care setting are separate. Both must allow access before the application collects or forwards coordinates. Revoking either privacy setting takes effect on the next request.
 

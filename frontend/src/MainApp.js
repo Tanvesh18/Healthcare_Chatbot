@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch, apiJson, clearToken, getToken } from "./api";
 import ChatArea from "./components/ChatArea";
 import Sidebar from "./components/Sidebar";
+import { isNearbyRequest } from "./utils/nearbyCare";
+import { createSseParser } from "./utils/sse";
 
 const SIDEBAR_WIDTH_KEY = "techfiesta.sidebarWidth";
 const DEFAULT_SIDEBAR_WIDTH = 298;
@@ -12,10 +14,6 @@ const LOCATION_UNAVAILABLE_MESSAGE =
   "To suggest nearby doctors or hospitals, I need access to your location. Please allow location permission and try again.";
 const LOCATION_CONSENT_REQUIRED_MESSAGE =
   "Nearby-care search is off in Privacy Settings. Enable it there before sharing your location.";
-
-function isNearbyRequest(text) {
-  return /\b(near me|nearby|around me|nearest|closest)\b.*\b(doctor|hospital|clinic|pharmacy|care)\b|\b(doctor|hospital|clinic|pharmacy)\b.*\b(near me|nearby|around me|nearest|closest)\b/i.test(text);
-}
 
 function isLocationConsent(text, messages) {
   const lastAssistantMessage = [...messages].reverse().find(message => message.sender === "assistant");
@@ -61,7 +59,6 @@ export default function MainApp() {
   const [history, setHistory] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [error, setError] = useState("");
-  const [locationCareSearchEnabled, setLocationCareSearchEnabled] = useState(false);
   const bufferRef = useRef("");
   const activeStreamControllerRef = useRef(null);
   const chatSessionRef = useRef(0);
@@ -86,22 +83,6 @@ export default function MainApp() {
   useEffect(() => {
     refreshHistory();
   }, [refreshHistory]);
-
-  useEffect(() => {
-    if (!getToken()) return;
-
-    apiJson("/api/auth/me")
-      .then(user => {
-        setLocationCareSearchEnabled(
-          user.privacyConsents?.locationCareSearch?.enabled === true
-        );
-      })
-      .catch(err => {
-        if (err.status === 401) {
-          redirectToLogin(err.message);
-        }
-      });
-  }, [redirectToLogin]);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
@@ -135,7 +116,24 @@ export default function MainApp() {
     const wantsNearby = isNearbyRequest(userMsg) || isLocationConsent(userMsg, messages);
 
     if (wantsNearby) {
-      if (!locationCareSearchEnabled) {
+      let locationConsentEnabled;
+
+      try {
+        const user = await apiJson("/api/auth/me");
+        locationConsentEnabled =
+          user.privacyConsents?.locationCareSearch?.enabled === true;
+      } catch (err) {
+        setIsTyping(false);
+        if (err.status === 401) {
+          redirectToLogin(err.message);
+          return;
+        }
+
+        setError("Unable to verify your nearby-care privacy setting. Please try again.");
+        return;
+      }
+
+      if (!locationConsentEnabled) {
         setMessages(prev => [
           ...prev,
           { sender: "user", text: userMsg },
@@ -162,7 +160,6 @@ export default function MainApp() {
         return;
       }
 
-      console.log("Browser location:", location);
     }
 
     if (!chatId) {
@@ -234,47 +231,53 @@ export default function MainApp() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       bufferRef.current = "";
+      let streamCompleted = false;
+      let streamError = null;
+      const parser = createSseParser(token => {
+        if (token === "[DONE]") {
+          streamCompleted = true;
+          return;
+        }
+
+        if (token === "[ERROR]") {
+          streamError = new Error("The assistant could not complete that response.");
+          return;
+        }
+
+        bufferRef.current += token;
+        setMessages(prev => {
+          if (chatSession !== chatSessionRef.current) return prev;
+
+          const nextMessages = [...prev];
+          nextMessages[nextMessages.length - 1].text = bufferRef.current;
+          return nextMessages;
+        });
+      });
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
         if (chatSession !== chatSessionRef.current) return;
 
-        const chunk = decoder.decode(value);
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-
-          const token = line.replace("data: ", "");
-
-          if (token === "[DONE]") {
-            if (chatSession !== chatSessionRef.current) return;
-
-            const finalMessages = [
-              ...updatedMessages.slice(0, -1),
-              { sender: "assistant", text: bufferRef.current }
-            ];
-
-            setMessages(finalMessages);
-            await updateChat(chatId, finalMessages);
-            refreshHistory();
-            setIsTyping(false);
-            return;
-          }
-
-          if (token === "[ERROR]") {
-            throw new Error("The assistant could not complete that response.");
-          }
-
-          bufferRef.current += token;
-          setMessages(prev => {
-            if (chatSession !== chatSessionRef.current) return prev;
-
-            const nextMessages = [...prev];
-            nextMessages[nextMessages.length - 1].text = bufferRef.current;
-            return nextMessages;
-          });
-        }
+        parser.push(decoder.decode(value, { stream: true }));
       }
+
+      parser.push(decoder.decode());
+      parser.finish();
+      if (streamError) throw streamError;
+      if (!streamCompleted) throw new Error("The assistant response was interrupted.");
+      if (chatSession !== chatSessionRef.current) return;
+
+      const finalMessages = [
+        ...updatedMessages.slice(0, -1),
+        { sender: "assistant", text: bufferRef.current }
+      ];
+
+      setMessages(finalMessages);
+      await updateChat(chatId, finalMessages);
+      refreshHistory();
+      setIsTyping(false);
+      return;
     } catch (err) {
       if (err.name === "AbortError" || chatSession !== chatSessionRef.current) {
         return;

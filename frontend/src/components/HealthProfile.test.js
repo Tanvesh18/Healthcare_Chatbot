@@ -34,7 +34,7 @@ test("renders accessible privacy choices with data sharing explanations", () => 
   expect(screen.getByRole("checkbox", {
     name: /use my location to find nearby care/i
   })).toBeChecked();
-  expect(screen.getByText(/coordinates are sent to openstreetmap overpass/i)).toBeInTheDocument();
+  expect(screen.getByText(/coordinates are sent to openstreetmap overpass, with nominatim as a fallback/i)).toBeInTheDocument();
 });
 
 test("saves enabled and revoked privacy preferences", async () => {

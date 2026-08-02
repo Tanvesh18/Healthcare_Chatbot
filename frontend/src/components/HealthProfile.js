@@ -567,7 +567,7 @@ export default function HealthProfile({ user, onClose, onSaved, standalone = fal
                 />
                 <span>
                   <strong>Use my location to find nearby care</strong>
-                  <small>Your coordinates are sent to OpenStreetMap Overpass only for a nearby-care request.</small>
+                  <small>Your coordinates are sent to OpenStreetMap Overpass, with Nominatim as a fallback, only for a nearby-care request.</small>
                 </span>
               </label>
             </fieldset>

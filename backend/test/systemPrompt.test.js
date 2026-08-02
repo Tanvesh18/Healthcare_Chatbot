@@ -43,6 +43,18 @@ test("does not request location for unrelated health questions", () => {
   assert.match(prompt, /Do not offer location access.*unless the user asks for nearby care/i);
 });
 
+test("does not describe nearby-care consent as disabled when it is enabled", () => {
+  const prompt = buildSystemPrompt({
+    privacyConsents: {
+      locationCareSearch: { enabled: true }
+    }
+  });
+
+  assert.match(prompt, /consent enabled, coordinates not provided/i);
+  assert.match(prompt, /retry and allow browser location access/i);
+  assert.doesNotMatch(prompt, /enable nearby-care search in privacy settings/i);
+});
+
 test("limits facility guidance to verified lookup results", () => {
   const prompt = buildSystemPrompt(
     {},

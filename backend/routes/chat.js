@@ -12,12 +12,20 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 const NEARBY_SEARCH_RADIUS_METERS = 5000;
 const MAX_NEARBY_DISTANCE_KM = NEARBY_SEARCH_RADIUS_METERS / 1000;
-const OVERPASS_TIMEOUT_MS = 6000;
-const OVERPASS_ENDPOINTS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.openstreetmap.ru/api/interpreter"
-];
+const LOCATION_PROVIDER_TIMEOUT_MS = 8000;
+const OVERPASS_ENDPOINTS = (process.env.OVERPASS_ENDPOINTS || [
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass-api.de/api/interpreter"
+].join(","))
+  .split(",")
+  .map(endpoint => endpoint.trim())
+  .filter(Boolean);
+const NOMINATIM_ENDPOINT =
+  process.env.NOMINATIM_ENDPOINT || "https://nominatim.openstreetmap.org/search";
+const NEARBY_LOOKUP_UNAVAILABLE_RESPONSE =
+  "I received your location, but the nearby-care provider is temporarily unavailable. Please retry in a moment or use a trusted mapping service to search for hospitals or emergency clinics near you. If this is an emergency, call your local emergency number now.";
+const NO_NEARBY_RESULTS_RESPONSE =
+  `I received your location, but OpenStreetMap returned no verified hospitals, clinics, doctors, or pharmacies within ${MAX_NEARBY_DISTANCE_KM} km. Try a broader search in a trusted mapping service. If this is an emergency, call your local emergency number now.`;
 
 const toNumber = value => {
   const parsed = Number(value);
@@ -58,12 +66,10 @@ const formatClinic = (name, lat, lng, distance = null) => {
 
 const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
   const query = [
-    "[out:json][timeout:8];",
+    "[out:json][timeout:7];",
     "(",
-    `node["amenity"~"^(hospital|clinic|doctors|pharmacy)$"](around:${NEARBY_SEARCH_RADIUS_METERS},${lat},${lng});`,
-    `way["amenity"~"^(hospital|clinic|doctors|pharmacy)$"](around:${NEARBY_SEARCH_RADIUS_METERS},${lat},${lng});`,
-    `node["healthcare"~"^(hospital|clinic|doctor|centre|emergency|pharmacy)$"](around:${NEARBY_SEARCH_RADIUS_METERS},${lat},${lng});`,
-    `way["healthcare"~"^(hospital|clinic|doctor|centre|emergency|pharmacy)$"](around:${NEARBY_SEARCH_RADIUS_METERS},${lat},${lng});`,
+    `nwr(around:${NEARBY_SEARCH_RADIUS_METERS},${lat},${lng})["amenity"~"^(hospital|clinic|doctors|pharmacy)$"];`,
+    `nwr(around:${NEARBY_SEARCH_RADIUS_METERS},${lat},${lng})["healthcare"~"^(hospital|clinic|doctor|centre|emergency|pharmacy)$"];`,
     ");",
     "out center 15;"
   ].join("\n");
@@ -72,7 +78,7 @@ const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
 
   for (const endpoint of OVERPASS_ENDPOINTS) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), LOCATION_PROVIDER_TIMEOUT_MS);
 
     try {
       const res = await fetch(endpoint, {
@@ -104,11 +110,11 @@ const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
     }
   }
 
-  if (!data) return "";
+  if (!data) return { status: "unavailable", clinics: "" };
 
   const origin = { lat, lng };
 
-  return (data.elements || [])
+  const clinics = (data.elements || [])
     .map(place => ({
       name: place.tags?.name || place.tags?.["name:en"] || place.tags?.amenity,
       lat: place.lat ?? place.center?.lat,
@@ -129,15 +135,104 @@ const fetchOpenStreetMapNearbyClinics = async (lat, lng) => {
     .slice(0, 5)
     .map(place => formatClinic(place.name, place.lat, place.lng, place.distance))
     .join("\n");
+
+  return { status: "success", clinics };
+};
+
+const fetchNominatimNearbyClinics = async (lat, lng) => {
+  const latitudeDelta = MAX_NEARBY_DISTANCE_KM / 111;
+  const longitudeScale = Math.max(Math.cos(lat * Math.PI / 180), 0.1);
+  const longitudeDelta = MAX_NEARBY_DISTANCE_KM / (111 * longitudeScale);
+  const viewbox = [
+    lng - longitudeDelta,
+    lat + latitudeDelta,
+    lng + longitudeDelta,
+    lat - latitudeDelta
+  ].join(",");
+  const url = new URL(NOMINATIM_ENDPOINT);
+  url.search = new URLSearchParams({
+    format: "jsonv2",
+    q: "[hospital]",
+    viewbox,
+    bounded: "1",
+    layer: "poi",
+    limit: "10"
+  }).toString();
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LOCATION_PROVIDER_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": "CuraLinkAI/1.0"
+      }
+    });
+
+    if (!response.ok) {
+      console.warn("OpenStreetMap fallback failed:", url.hostname, response.status);
+      return { status: "unavailable", clinics: "" };
+    }
+
+    const data = await response.json();
+    const origin = { lat, lng };
+    const clinics = (Array.isArray(data) ? data : [])
+      .map(place => ({
+        name: place.name || String(place.display_name || "").split(",")[0],
+        lat: toNumber(place.lat),
+        lng: toNumber(place.lon)
+      }))
+      .filter(place => place.name && place.lat !== null && place.lng !== null)
+      .map(place => ({
+        ...place,
+        distance: distanceKm(origin, place)
+      }))
+      .filter(place => place.distance <= MAX_NEARBY_DISTANCE_KM)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5)
+      .map(place => formatClinic(place.name, place.lat, place.lng, place.distance))
+      .join("\n");
+
+    return { status: "success", clinics };
+  } catch (error) {
+    console.warn(
+      "OpenStreetMap fallback failed:",
+      url.hostname,
+      error.name === "AbortError" ? "timeout" : "request-error"
+    );
+    return { status: "unavailable", clinics: "" };
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 const fetchNearbyClinics = async (lat, lng) => {
   try {
-    return await fetchOpenStreetMapNearbyClinics(lat, lng);
+    const overpassResult = await fetchOpenStreetMapNearbyClinics(lat, lng);
+    if (overpassResult.status === "success") {
+      return overpassResult;
+    }
+
+    return await fetchNominatimNearbyClinics(lat, lng);
   } catch {
     console.warn("Nearby clinic lookup failed");
-    return "";
+    return { status: "unavailable", clinics: "" };
   }
+};
+
+const writeCompletedResponse = (res, message) => {
+  writeSseData(res, message);
+  res.write("data: [DONE]\n\n");
+  res.end();
+};
+
+const writeSseData = (res, value) => {
+  for (const line of String(value).split(/\r?\n/)) {
+    res.write(`data: ${line}\n`);
+  }
+  res.write("\n");
 };
 
 router.post("/title", async (req, res) => {
@@ -188,15 +283,21 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     const emergency = detectEmergency(latestUserMessage?.content);
 
     if (emergency) {
-      res.write(`data: ${emergency.response}\n\n`);
-      res.write("data: [DONE]\n\n");
-      return res.end();
+      return writeCompletedResponse(res, emergency.response);
     }
 
     const location = normalizeLocation(req.body.location);
     let clinics = "";
     if (location) {
-      clinics = await fetchNearbyClinics(location.lat, location.lng);
+      const nearbyLookup = await fetchNearbyClinics(location.lat, location.lng);
+      if (nearbyLookup.status === "unavailable") {
+        return writeCompletedResponse(res, NEARBY_LOOKUP_UNAVAILABLE_RESPONSE);
+      }
+
+      clinics = nearbyLookup.clinics;
+      if (!clinics) {
+        return writeCompletedResponse(res, NO_NEARBY_RESULTS_RESPONSE);
+      }
     }
 
     const stream = await groq.chat.completions.create({
@@ -211,7 +312,7 @@ router.post("/chat-stream", requireAuth, async (req, res) => {
     for await (const chunk of stream) {
       const token = chunk.choices[0]?.delta?.content;
       if (token) {
-        res.write(`data: ${token}\n\n`);
+        writeSseData(res, token);
       }
     }
 
