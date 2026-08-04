@@ -3,6 +3,7 @@ import Groq from "groq-sdk";
 import fetch from "node-fetch";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
+import { aiRateLimiter } from "../middleware/rateLimit.js";
 import { detectEmergency } from "../services/emergencyTriage.js";
 import { getChatPrivacyState } from "../services/privacyConsents.js";
 import { buildSystemPrompt } from "../services/systemPrompt.js";
@@ -235,7 +236,7 @@ const writeSseData = (res, value) => {
   res.write("\n");
 };
 
-router.post("/title", async (req, res) => {
+router.post("/title", aiRateLimiter, async (req, res) => {
   try {
     const completion = await groq.chat.completions.create({
       model,
@@ -253,7 +254,7 @@ router.post("/title", async (req, res) => {
   }
 });
 
-router.post("/chat-stream", requireAuth, async (req, res) => {
+router.post("/chat-stream", requireAuth, aiRateLimiter, async (req, res) => {
   try {
     if (!Array.isArray(req.body.messages) || req.body.messages.length === 0) {
       return res.status(400).json({ message: "Messages are required" });
