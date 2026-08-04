@@ -4,6 +4,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
+import { authRateLimiter } from "../middleware/rateLimit.js";
 import {
   normalizeAdverseReactions,
   normalizeMedications
@@ -248,7 +249,7 @@ function publicUser(user) {
   return safeUser;
 }
 
-router.post("/signup", async (req, res, next) => {
+router.post("/signup", authRateLimiter, async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
@@ -275,7 +276,7 @@ router.post("/signup", async (req, res, next) => {
   }
 });
 
-router.post("/login", async (req, res, next) => {
+router.post("/login", authRateLimiter, async (req, res, next) => {
   try {
     if (!req.body.email?.trim() || !req.body.password) {
       throw badRequest("Email and password are required");
@@ -300,7 +301,7 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-router.post("/google", async (req, res, next) => {
+router.post("/google", authRateLimiter, async (req, res, next) => {
   try {
     const { credential } = req.body;
 
