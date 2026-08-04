@@ -236,6 +236,12 @@ CLIENT_ORIGIN=http://localhost:3000
 
 # Google Sign-In Web Client ID
 GOOGLE_CLIENT_ID=your-google-web-client-id
+
+# Optional rate limits (defaults shown)
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+AUTH_RATE_LIMIT_MAX=20
+AI_RATE_LIMIT_WINDOW_MS=60000
+AI_RATE_LIMIT_MAX=10
 ```
 
 ### Step 3: Frontend Setup
@@ -282,6 +288,10 @@ The application will be available at:
 | `MONGO_URI` | MongoDB connection string | ✅ Yes |
 | `JWT_SECRET` | Secret key for JWT tokens | ✅ Yes |
 | `GROQ_API_KEY` | Groq API key for AI models | ✅ Yes |
+| `AUTH_RATE_LIMIT_WINDOW_MS` | Authentication limit window in milliseconds (default: 900000) | No |
+| `AUTH_RATE_LIMIT_MAX` | Authentication requests allowed per IP and window (default: 20) | No |
+| `AI_RATE_LIMIT_WINDOW_MS` | AI limit window in milliseconds (default: 60000) | No |
+| `AI_RATE_LIMIT_MAX` | AI requests allowed per user/IP and window (default: 10) | No |
 
 #### Frontend
 No environment variables required for basic setup. API endpoints are hardcoded to `http://localhost:5000`.
