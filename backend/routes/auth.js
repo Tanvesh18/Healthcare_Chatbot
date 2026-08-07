@@ -1,7 +1,6 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import requireAuth from "../middleware/RequireAuth.js";
 import { authRateLimiter } from "../middleware/rateLimit.js";
@@ -13,6 +12,7 @@ import {
   buildConsentRecord,
   getPrivacyConsents
 } from "../services/privacyConsents.js";
+import { signSessionToken } from "../services/sessionSecurity.js";
 
 const router = express.Router();
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
@@ -270,7 +270,7 @@ router.post("/signup", authRateLimiter, async (req, res, next) => {
       password: hashed
     });
 
-    res.json({ token: jwt.sign({ id: user._id }, process.env.JWT_SECRET) });
+    res.json({ token: signSessionToken(user) });
   } catch (error) {
     next(error);
   }
@@ -282,7 +282,8 @@ router.post("/login", authRateLimiter, async (req, res, next) => {
       throw badRequest("Email and password are required");
     }
 
-    const user = await User.findOne({ email: req.body.email.trim().toLowerCase() });
+    const user = await User.findOne({ email: req.body.email.trim().toLowerCase() })
+      .select("+sessionVersion");
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -295,7 +296,7 @@ router.post("/login", authRateLimiter, async (req, res, next) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    res.json({ token: jwt.sign({ id: user._id }, process.env.JWT_SECRET) });
+    res.json({ token: signSessionToken(user) });
   } catch (error) {
     next(error);
   }
@@ -326,7 +327,7 @@ router.post("/google", authRateLimiter, async (req, res, next) => {
     }
 
     const normalizedEmail = payload.email.trim().toLowerCase();
-    let user = await User.findOne({ email: normalizedEmail });
+    let user = await User.findOne({ email: normalizedEmail }).select("+sessionVersion");
 
     if (!user) {
       user = await User.create({
@@ -358,7 +359,7 @@ router.post("/google", authRateLimiter, async (req, res, next) => {
       }
     }
 
-    res.json({ token: jwt.sign({ id: user._id }, process.env.JWT_SECRET) });
+    res.json({ token: signSessionToken(user) });
   } catch (error) {
     next(error);
   }
@@ -369,6 +370,15 @@ router.get("/me", requireAuth, async (req, res, next) => {
     const user = await User.findById(req.auth.id).select("-password -googleId");
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json(user);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/logout", requireAuth, async (req, res, next) => {
+  try {
+    await User.findByIdAndUpdate(req.auth.id, { $inc: { sessionVersion: 1 } });
+    res.json({ message: "Logged out successfully" });
   } catch (error) {
     next(error);
   }
