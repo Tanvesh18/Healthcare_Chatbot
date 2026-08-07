@@ -190,9 +190,15 @@ export default function Sidebar({
 
             <button
               className="auth-btn logout"
-              onClick={() => {
-                clearToken();
-                navigate("/login");
+              onClick={async () => {
+                try {
+                  await apiJson("/api/auth/logout", { method: "POST" });
+                } catch (error) {
+                  console.warn("Server logout failed; clearing the local session", error);
+                } finally {
+                  clearToken();
+                  navigate("/login");
+                }
               }}
             >
               <FiLogOut style={{ marginRight: 6 }} /> Logout
