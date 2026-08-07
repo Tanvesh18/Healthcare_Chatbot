@@ -230,6 +230,8 @@ JWT_SECRET=your-super-secret-jwt-key-here
 
 # Groq API Key
 GROQ_API_KEY=your-groq-api-key-here
+JWT_SECRET=use-a-long-random-secret
+JWT_EXPIRES_IN=1h
 
 # Frontend origin for CORS
 CLIENT_ORIGIN=http://localhost:3000
