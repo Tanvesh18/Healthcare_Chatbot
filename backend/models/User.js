@@ -36,6 +36,7 @@ const userSchema = new mongoose.Schema({
   password: String,
   googleId: String,
   avatarUrl: String,
+  sessionVersion: { type: Number, default: 0, min: 0, select: false },
   age: Number,
   height: Number,
   weight: Number,
@@ -54,6 +55,6 @@ const userSchema = new mongoose.Schema({
   },
 
   chats: [chatSchema]
-});
+}, { timestamps: true });
 
 export default mongoose.model("User", userSchema);
